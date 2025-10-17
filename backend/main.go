@@ -656,10 +656,12 @@ func main() {
 				log.Fatalf("Failed to start HTTPS server: %v", err)
 			}
 		} else {
-			if os.Getenv("ENVIRONMENT") == "production" {
-				log.Fatal("TLS is required in production. Set USE_TLS=true and provide TLS_CERT and TLS_KEY")
-			}
+			// When behind a reverse proxy (like nginx) that handles TLS termination,
+			// it's acceptable to run the backend on HTTP locally
 			log.Printf("✓ Server running on http://localhost:%s", port)
+			if os.Getenv("ENVIRONMENT") == "production" {
+				log.Println("⚠️  Running without TLS - ensure reverse proxy (nginx) handles HTTPS")
+			}
 			log.Println("✓ API endpoints ready")
 			if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 				log.Fatalf("Failed to start server: %v", err)
