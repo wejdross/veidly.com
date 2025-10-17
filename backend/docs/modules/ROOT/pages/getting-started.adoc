@@ -1,0 +1,271 @@
+= Getting Started
+:description: Quick start guide for running Veidly locally
+:keywords: installation, setup, development
+
+== Prerequisites
+
+* **Go**: Version 1.21 or higher
+* **Node.js**: Version 18 or higher
+* **npm**: Version 9 or higher
+* **Git**: For cloning the repository
+* **Make**: For using the Makefile commands
+
+== Quick Start
+
+=== 1. Clone the Repository
+
+[source,bash]
+----
+git clone https://github.com/yourusername/veidly.git
+cd veidly.com
+----
+
+=== 2. Install Dependencies
+
+[source,bash]
+----
+make install
+----
+
+This will install both backend (Go modules) and frontend (npm packages) dependencies.
+
+=== 3. Configure Environment
+
+The app uses environment variables for configuration. For development, defaults work fine.
+
+Optional environment variables:
+
+[source,bash]
+----
+# JWT Secret (auto-generated if not set)
+export JWT_SECRET="your-secret-key"
+
+# Admin credentials
+export ADMIN_EMAIL="admin@example.com"
+export ADMIN_PASSWORD="securepassword"
+
+# Email service (Mailgun)
+export MAILGUN_DOMAIN="your-domain.com"
+export MAILGUN_API_KEY="your-api-key"
+export MAILGUN_FROM_EMAIL="noreply@your-domain.com"
+----
+
+=== 4. Run Development Servers
+
+[source,bash]
+----
+make dev
+----
+
+This starts:
+
+* Backend API server on `http://localhost:8080`
+* Frontend dev server on `http://localhost:5173`
+
+The frontend will automatically proxy API requests to the backend.
+
+=== 5. Access the Application
+
+Open your browser to:
+
+* **Frontend**: http://localhost:5173
+* **Backend API**: http://localhost:8080/api
+
+== Development Workflow
+
+=== Running Tests
+
+[source,bash]
+----
+# Run backend tests
+make test
+
+# Run with coverage
+make test-coverage
+
+# Run frontend tests
+cd frontend && npm test
+----
+
+=== Building for Production
+
+[source,bash]
+----
+# Build both frontend and backend
+make build
+
+# Or build separately
+make build-frontend
+make build-backend
+----
+
+=== Database Management
+
+The SQLite database is created automatically on first run at `./veidly.db`.
+
+To reset the database:
+
+[source,bash]
+----
+rm veidly.db
+make dev  # Will create fresh database
+----
+
+=== Seeding Test Data
+
+[source,bash]
+----
+cd backend
+ADMIN_PASSWORD=admin123 python3 seed_test_data.py
+----
+
+This creates:
+
+* Test admin user
+* Sample events in different categories
+* Test regular users
+* Event participants
+
+== Common Tasks
+
+=== Creating Your First Event
+
+1. Register a new account at http://localhost:5173
+2. Verify your email (check logs for verification link in dev mode)
+3. Click "Create Event" button
+4. Fill in event details
+5. Click on the map or search for a location
+6. Set your preferences and privacy settings
+7. Click "Create Event"
+
+=== Joining an Event
+
+1. Log in to your account
+2. Browse events on the map or list view
+3. Click on an event marker or card
+4. Click "Join Event"
+5. You'll see the organizer's contact information
+
+=== Managing Your Events
+
+1. Click on your profile
+2. View "Created Events" section
+3. Click "Edit" to modify event details
+4. Click "Delete" to remove an event
+
+== Makefile Commands
+
+[cols="1,3"]
+|===
+|Command |Description
+
+|`make install`
+|Install all dependencies (backend + frontend)
+
+|`make dev`
+|Run development servers (backend + frontend)
+
+|`make test`
+|Run all tests
+
+|`make test-coverage`
+|Run tests with coverage report
+
+|`make build`
+|Build for production
+
+|`make clean`
+|Clean build artifacts
+
+|`make check-deps`
+|Verify dependencies are installed
+
+|`make help`
+|Show all available commands
+|===
+
+== Project Structure
+
+[source]
+----
+veidly.com/
+├── backend/           # Go backend
+│   ├── *.go          # Go source files
+│   ├── *_test.go     # Test files
+│   └── go.mod        # Go dependencies
+├── frontend/          # React frontend
+│   ├── src/          # Source code
+│   ├── public/       # Static assets
+│   └── package.json  # npm dependencies
+├── docs/             # Antora documentation
+├── terraform/        # AWS infrastructure
+├── .github/          # GitHub Actions CI/CD
+├── Makefile          # Development commands
+└── veidly.db         # SQLite database (created on first run)
+----
+
+== Troubleshooting
+
+=== Backend won't start
+
+**Error**: `JWT secret is not configured`
+
+**Solution**: Set JWT_SECRET environment variable or let it auto-generate
+
+---
+
+**Error**: `database locked`
+
+**Solution**: Close any other processes using the database
+
+[source,bash]
+----
+lsof veidly.db
+kill <PID>
+----
+
+=== Frontend build fails
+
+**Error**: `vite: command not found`
+
+**Solution**: Install dependencies
+
+[source,bash]
+----
+cd frontend
+npm install
+----
+
+=== Tests fail
+
+**Error**: `no such column: drugs_allowed`
+
+**Solution**: You're running tests on an old database schema
+
+[source,bash]
+----
+rm veidly-test-suite.db
+make test
+----
+
+=== Email verification not working
+
+In development mode without Mailgun configured:
+
+* Check backend logs for verification links
+* Copy the verification URL from logs
+* Paste it in your browser
+* Alternatively, use admin panel to manually verify users
+
+== Next Steps
+
+* xref:features.adoc[Explore all features]
+* xref:architecture.adoc[Understand the architecture]
+* xref:api.adoc[Read API documentation]
+* xref:contributing.adoc[Start contributing]
+
+== Getting Help
+
+* **GitHub Issues**: https://github.com/yourusername/veidly/issues
+* **Discussions**: https://github.com/yourusername/veidly/discussions
+* **Documentation**: You're reading it! 📖

@@ -1,0 +1,504 @@
+= Privacy Controls
+:description: Event-level privacy settings and progressive information disclosure
+:keywords: privacy, security, data protection, gdpr
+
+Veidly implements comprehensive privacy controls that allow event organizers to control who can see their information and who can join their events.
+
+== Overview
+
+Privacy in Veidly is based on **progressive information disclosure** - users see more information as they become more trusted:
+
+[options="header"]
+|===
+|User Status |Can See
+|Public (not logged in) |Basic event info (title, location, time)
+|Authenticated |Event details, may see organizer name
+|Email Verified |Full event access, may join events
+|Event Participant |Organizer contact, participant list
+|Event Creator/Admin |Everything, can manage event
+|===
+
+== Event Privacy Settings
+
+Each event has 4 privacy controls that organizers can configure:
+
+=== 1. Hide Organizer Until Joined
+
+**Field**: `hide_organizer_until_joined`
+
+**When enabled**:
+
+* Non-participants see: "🔒 Join to see organizer"
+* Organizer name is hidden
+* Organizer contact is hidden
+* After joining, full organizer info is revealed
+
+**Use cases**:
+
+* Private or sensitive events
+* Events where organizer wants to screen participants first
+* Events with limited capacity
+
+**Default**: `false` (organizer visible to all)
+
+=== 2. Hide Participants Until Joined
+
+**Field**: `hide_participants_until_joined`
+
+**When enabled**:
+
+* Non-participants cannot see who joined
+* Participant count is still visible
+* After joining, full participant list is visible
+
+**Use cases**:
+
+* Professional networking events
+* Sensitive or private gatherings
+* Events where participant privacy is important
+
+**Default**: `true` (participants hidden)
+
+=== 3. Require Verified Email to Join
+
+**Field**: `require_verified_to_join`
+
+**When enabled**:
+
+* Only users with verified emails can join
+* Unverified users see: "Email verification required"
+* Join button is disabled for unverified users
+
+**Use cases**:
+
+* Reducing spam and fake accounts
+* Ensuring attendee accountability
+* Professional or business events
+
+**Default**: `false` (anyone can join)
+
+=== 4. Require Verified Email to View
+
+**Field**: `require_verified_to_view`
+
+**When enabled**:
+
+* Unverified users see limited event details
+* Event description may be truncated
+* Location precision may be reduced
+
+**Use cases**:
+
+* Highly private events
+* Events with sensitive information
+* Invite-only or curated events
+
+**Default**: `false` (anyone can view)
+
+== Privacy Matrix
+
+This table shows what information is visible under different privacy settings:
+
+[options="header"]
+|===
+|Information |Public |Authenticated |Verified |Participant |Creator/Admin
+
+|**Event title**
+|✅ Always
+|✅ Always
+|✅ Always
+|✅ Always
+|✅ Always
+
+|**Event description**
+|✅ Always
+|✅ Always
+|✅ Always
+|✅ Always
+|✅ Always
+
+|**Location (coordinates)**
+|✅ Always
+|✅ Always
+|✅ Always
+|✅ Always
+|✅ Always
+
+|**Date and time**
+|✅ Always
+|✅ Always
+|✅ Always
+|✅ Always
+|✅ Always
+
+|**Organizer name**
+|❌ If hidden
+|❌ If hidden
+|❌ If hidden
+|✅ Always
+|✅ Always
+
+|**Organizer contact**
+|❌ Never
+|❌ Never
+|❌ Never
+|✅ Always
+|✅ Always
+
+|**Participant list**
+|❌ If hidden
+|❌ If hidden
+|❌ If hidden
+|✅ Always
+|✅ Always
+
+|**Participant count**
+|✅ Always
+|✅ Always
+|✅ Always
+|✅ Always
+|✅ Always
+
+|**Join button**
+|❌ No
+|✅ If allowed
+|✅ If allowed
+|N/A
+|N/A
+
+|**Edit/Delete**
+|❌ No
+|❌ No
+|❌ No
+|❌ No
+|✅ Always
+|===
+
+== Implementation Details
+
+=== Backend Privacy Filtering
+
+Privacy filtering is implemented in [privacy.go:1-157](../../../../../../privacy.go):
+
+[source,go]
+----
+func ApplyPrivacyFilters(event *Event, viewerUserID int, viewerIsVerified bool, isAdmin bool) {
+    // Admins and event creators bypass all filters
+    if isAdmin || event.UserID == viewerUserID {
+        return
+    }
+
+    // Check if viewer is a participant
+    isParticipant := event.IsParticipant
+
+    // Apply organizer privacy filter
+    if event.HideOrganizerUntilJoined && !isParticipant {
+        event.CreatorName = "🔒 Join to see organizer"
+        event.CreatorContact = ""
+    } else if !viewerIsVerified {
+        event.CreatorContact = "🔒 Verify email to see contact"
+    } else if !isParticipant {
+        event.CreatorContact = "🔒 Join to see contact"
+    }
+
+    // Apply additional filters...
+}
+----
+
+Key functions:
+
+* `ApplyPrivacyFilters()` - Main filter function applied to all events
+* `CheckEventViewPermission()` - Validates if user can view event
+* `CheckEventJoinPermission()` - Validates if user can join event
+* `CanSeeParticipants()` - Checks participant list visibility
+
+=== Frontend Display
+
+The frontend adapts UI based on privacy settings:
+
+**Event creation form** - [CreateEventPage.tsx](../../../../../../frontend/src/pages/CreateEventPage.tsx):
+
+[source,typescript]
+----
+<div className="privacy-controls">
+  <label>
+    <input
+      type="checkbox"
+      checked={hideOrganizerUntilJoined}
+      onChange={(e) => setHideOrganizerUntilJoined(e.target.checked)}
+    />
+    Hide organizer information until users join
+  </label>
+
+  <label>
+    <input
+      type="checkbox"
+      checked={hideParticipantsUntilJoined}
+      onChange={(e) => setHideParticipantsUntilJoined(e.target.checked)}
+    />
+    Hide participant list until users join
+  </label>
+
+  {/* More privacy controls... */}
+</div>
+----
+
+**Event display** - Shows privacy indicators:
+
+[source,typescript]
+----
+{event.hide_organizer_until_joined && !event.is_participant && (
+  <span className="privacy-notice">
+    🔒 Organizer hidden until you join
+  </span>
+)}
+----
+
+== Admin Exemptions
+
+Administrators bypass all privacy restrictions:
+
+* Can see all event details regardless of privacy settings
+* Can view all participant lists
+* Can see organizer contact information
+* Can edit and delete any event
+* Do not need email verification
+
+This is implemented in the backend:
+
+[source,go]
+----
+// Admins bypass all privacy filters
+if isAdmin || event.UserID == viewerUserID {
+    return // No filtering applied
+}
+----
+
+== Use Cases and Examples
+
+=== Public Community Event
+
+Settings:
+* `hide_organizer_until_joined`: `false`
+* `hide_participants_until_joined`: `true`
+* `require_verified_to_join`: `false`
+* `require_verified_to_view`: `false`
+
+**Result**: Anyone can view and join. Organizer is visible, but participants are private.
+
+**Example**: Community bike ride, public meetup
+
+=== Private Professional Networking
+
+Settings:
+* `hide_organizer_until_joined`: `true`
+* `hide_participants_until_joined`: `true`
+* `require_verified_to_join`: `true`
+* `require_verified_to_view`: `false`
+
+**Result**: Anyone can view the event, but only verified users can join. Organizer and participants are hidden until you join.
+
+**Example**: Professional networking dinner, industry meetup
+
+=== Invite-Only Event
+
+Settings:
+* `hide_organizer_until_joined`: `true`
+* `hide_participants_until_joined`: `true`
+* `require_verified_to_join`: `true`
+* `require_verified_to_view`: `true`
+
+**Result**: Highly restricted. Only verified users can see full details and join. All personal information hidden until joining.
+
+**Example**: Private party, exclusive gathering, sensitive meeting
+
+=== Open Workshop
+
+Settings:
+* `hide_organizer_until_joined`: `false`
+* `hide_participants_until_joined`: `false`
+* `require_verified_to_join`: `false`
+* `require_verified_to_view`: `false`
+
+**Result**: Completely open. Everything visible to everyone.
+
+**Example**: Public workshop, free training, community lecture
+
+== Email Verification
+
+Email verification is a key component of the privacy system:
+
+=== How It Works
+
+1. **User registers** with email and password
+2. **System sends verification email** via Mailgun
+3. **User clicks verification link** with token
+4. **Backend validates token** and marks email as verified
+5. **User gains additional permissions**
+
+=== Verification Requirement
+
+Events can require verified email:
+
+* **To view**: Unverified users see limited information
+* **To join**: Unverified users cannot join the event
+
+See xref:features/email-verification.adoc[Email Verification] for detailed documentation.
+
+== Privacy and GDPR Compliance
+
+Veidly's privacy controls support GDPR compliance:
+
+=== Data Minimization
+
+* Only collect necessary information
+* Allow users to hide personal information
+* Progressive disclosure reduces unnecessary data exposure
+
+=== User Control
+
+* Users control their own event privacy settings
+* Users can leave events (removes their participation data)
+* Organizers control what information is shared
+
+=== Right to be Forgotten
+
+* Users can delete their accounts
+* Deleting an account removes all personal data
+* Events created by deleted users are preserved but anonymized
+
+=== Data Retention
+
+* Event data retained as long as event exists
+* Backup data retention: 30 days (configurable)
+* Logs retention: 30 days in CloudWatch
+
+== Database Schema
+
+Privacy fields in the `events` table:
+
+[source,sql]
+----
+CREATE TABLE events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  -- ... other fields ...
+
+  -- Privacy controls
+  hide_organizer_until_joined INTEGER DEFAULT 0,
+  hide_participants_until_joined INTEGER DEFAULT 1,
+  require_verified_to_join INTEGER DEFAULT 0,
+  require_verified_to_view INTEGER DEFAULT 0,
+
+  -- ... other fields ...
+);
+----
+
+See [migrations/001_initial_schema.sql](../../../../../../migrations/001_initial_schema.sql) for the complete schema.
+
+== Testing Privacy
+
+Test privacy controls thoroughly:
+
+=== Manual Testing
+
+1. **Create event with different privacy settings**
+2. **View event as different user types**:
+   - Unauthenticated user
+   - Authenticated but unverified user
+   - Verified but not joined user
+   - Participant user
+   - Admin user
+3. **Verify appropriate information is shown/hidden**
+
+=== Automated Tests
+
+Backend tests in [handlers_test.go](../../../../../../handlers_test.go):
+
+[source,go]
+----
+func TestEventPrivacyFilters(t *testing.T) {
+    // Test hide_organizer_until_joined
+    // Test hide_participants_until_joined
+    // Test require_verified_to_join
+    // Test admin bypass
+}
+----
+
+Run tests:
+
+[source,bash]
+----
+go test -v -run TestEventPrivacy
+----
+
+== Security Considerations
+
+=== Token Validation
+
+All authenticated requests verify:
+
+* Token is valid and not expired
+* User exists and is not blocked
+* User email verification status
+
+=== SQL Injection Prevention
+
+All database queries use parameterized statements:
+
+[source,go]
+----
+// SAFE - Parameterized query
+db.QueryRow("SELECT * FROM events WHERE id = ?", eventID)
+
+// UNSAFE - Never do this
+db.QueryRow("SELECT * FROM events WHERE id = " + eventID)
+----
+
+=== XSS Prevention
+
+Frontend sanitizes all user input:
+
+* React automatically escapes JSX content
+* User-generated HTML is not rendered
+* URLs are validated before opening
+
+=== Rate Limiting
+
+Auth endpoints have strict rate limits:
+
+* Login: 5 requests/minute
+* Registration: 5 requests/minute
+* General API: 10 requests/second
+
+## Best Practices for Organizers
+
+When creating events, consider:
+
+1. **Default to privacy**: Start with stricter settings, relax as needed
+2. **Communicate privacy**: Explain privacy settings in event description
+3. **Use verification**: Require verified email for sensitive events
+4. **Hide participants**: Protect participant privacy by default
+5. **Test before publishing**: Preview event as non-participant
+
+## Best Practices for Developers
+
+When integrating privacy features:
+
+1. **Always apply filters**: Use `ApplyPrivacyFilters()` on all events
+2. **Check permissions**: Use `CheckEventViewPermission()` before displaying
+3. **Handle errors gracefully**: Show friendly messages for permission denials
+4. **Test all user types**: Automated tests should cover all permission levels
+5. **Document privacy behavior**: Clear documentation for API consumers
+
+== Next Steps
+
+* xref:features/email-verification.adoc[Email Verification] - Learn about email verification
+* xref:features/authentication.adoc[Authentication] - Understand the auth system
+* xref:api/events.adoc[Events API] - API endpoints for event management
+* xref:development/testing.adoc[Testing Guide] - Test privacy features
+
+== Additional Resources
+
+* https://gdpr.eu/[GDPR Official Site]
+* https://www.owasp.org/[OWASP Security Guidelines]
+* xref:admin/user-management.adoc[User Management]

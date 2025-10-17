@@ -1,0 +1,106 @@
+# Quick Start Guide
+
+## Get Up and Running in 2 Minutes
+
+### 1. Install dependencies (first time only)
+
+```bash
+# Install Go dependencies
+go mod download
+
+# Install frontend dependencies
+cd frontend
+npm install
+cd ..
+```
+
+### 2. Start the application
+
+Choose one of these methods:
+
+#### Method A: Use the convenience script (macOS/Linux)
+
+```bash
+./run.sh
+```
+
+#### Method B: Use the batch file (Windows)
+
+```cmd
+run.bat
+```
+
+#### Method C: Manual startup (all platforms)
+
+Open two terminal windows:
+
+**Terminal 1 - Backend:**
+```bash
+go run main.go
+```
+
+**Terminal 2 - Frontend:**
+```bash
+cd frontend
+npm run dev
+```
+
+### 3. Open your browser
+
+Navigate to: **http://localhost:3000**
+
+### 4. Test the application
+
+1. You'll see the landing page
+2. Click "Find Events" or "Explore Events Near You"
+3. Grant location permission (optional) or use default location
+4. Click anywhere on the map to create an event
+5. Fill out the form and submit
+6. See your event appear as a marker on the map
+7. Click markers to view event details
+
+## Troubleshooting
+
+### Port already in use
+
+If port 8080 or 3000 is already in use:
+
+**Backend (port 8080):**
+- Edit [main.go](main.go) and change `router.Run(":8080")` to another port
+
+**Frontend (port 3000):**
+- Edit [frontend/vite.config.ts](frontend/vite.config.ts) and change `port: 3000` to another port
+
+### Dependencies issues
+
+**Go dependencies:**
+```bash
+go mod tidy
+go mod download
+```
+
+**Frontend dependencies:**
+```bash
+cd frontend
+rm -rf node_modules package-lock.json
+npm install
+```
+
+### Map not showing
+
+Make sure you have internet connection - the map tiles are loaded from OpenStreetMap.
+
+## What's Next?
+
+- Read the full [README.md](README.md) for detailed documentation
+- Check the API endpoints documentation
+- Customize the application to your needs
+
+## Key Files to Know
+
+- [main.go](main.go) - Backend server and API
+- [frontend/src/components/MapView.tsx](frontend/src/components/MapView.tsx) - Map interface
+- [frontend/src/components/EventForm.tsx](frontend/src/components/EventForm.tsx) - Event creation form
+- [frontend/src/components/LandingPage.tsx](frontend/src/components/LandingPage.tsx) - Landing page
+
+Enjoy Veidly!

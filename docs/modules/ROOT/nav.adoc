@@ -1,0 +1,29 @@
+* xref:index.adoc[Welcome]
+* xref:project-summary.adoc[Project Summary]
+* xref:changelog.adoc[Changelog]
+
+.Guides
+* xref:guides/quickstart.adoc[Quick Start]
+* xref:guides/makefile.adoc[Makefile Reference]
+* xref:guides/test-data.adoc[Test Data Guide]
+* xref:guides/deployment.adoc[Deployment Guide]
+* xref:guides/new-features.adoc[New Features Guide]
+* xref:guides/implementation.adoc[Implementation Complete]
+
+.Features
+* xref:features/email-verification.adoc[Email Verification & Password Reset]
+
+.Security
+* xref:security/authentication.adoc[Authentication & Security]
+* xref:security/vulnerabilities-fixed.adoc[Security Improvements]
+
+.Architecture
+* xref:architecture/overview.adoc[Architecture Overview]
+
+.Development
+* xref:development/email-verification-implementation-plan.adoc[Email Verification Implementation Plan]
+
+.Testing
+* xref:testing/results.adoc[Test Results]
+* xref:testing/safety.adoc[Test Safety]
+* xref:testing/database-safety.adoc[Database Safety Proof]

@@ -1,0 +1,55 @@
+---
+- name: Clone/update repository
+  git:
+    repo: https://github.com/{{ github_repo | default('yourusername/veidly.com') }}
+    dest: "{{ app_dir }}"
+    version: "{{ release_tag }}"
+    force: yes
+  become_user: "{{ app_user }}"
+
+- name: Build backend
+  shell: |
+    export PATH=$PATH:/usr/local/go/bin
+    cd {{ app_dir }}/backend
+    go build -o veidly-backend .
+  become_user: "{{ app_user }}"
+  environment:
+    GOPATH: /home/{{ app_user }}/go
+
+- name: Create systemd service
+  template:
+    src: veidly.service.j2
+    dest: /etc/systemd/system/veidly.service
+    mode: '0644'
+  notify: restart veidly
+
+- name: Create backup script
+  template:
+    src: backup-db.sh.j2
+    dest: /home/{{ app_user }}/backup-db.sh
+    owner: "{{ app_user }}"
+    mode: '0755'
+
+- name: Setup backup cron job
+  cron:
+    name: "Backup Veidly database"
+    minute: "0"
+    hour: "2"
+    job: "/home/{{ app_user }}/backup-db.sh >> {{ log_dir }}/backup.log 2>&1"
+    user: "{{ app_user }}"
+
+- name: Setup log rotation
+  cron:
+    name: "Cleanup old Veidly logs"
+    minute: "0"
+    hour: "3"
+    weekday: "0"
+    job: "find {{ log_dir }} -name '*.log' -mtime +30 -delete"
+    user: "{{ app_user }}"
+
+- name: Enable and start service
+  systemd:
+    name: veidly
+    enabled: yes
+    state: started
+    daemon_reload: yes

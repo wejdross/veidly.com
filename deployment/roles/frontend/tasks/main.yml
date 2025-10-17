@@ -1,0 +1,22 @@
+---
+- name: Install npm dependencies
+  npm:
+    path: "{{ app_dir }}/frontend"
+  become_user: "{{ app_user }}"
+
+- name: Build frontend
+  shell: |
+    cd {{ app_dir }}/frontend
+    npm run build
+  become_user: "{{ app_user }}"
+  environment:
+    NODE_ENV: production
+
+- name: Ensure dist directory permissions
+  file:
+    path: "{{ app_dir }}/frontend/dist"
+    state: directory
+    owner: "{{ app_user }}"
+    group: www-data
+    mode: '0755'
+    recurse: yes
