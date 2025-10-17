@@ -1,0 +1,723 @@
+= Contributing Guide
+:description: How to contribute to Veidly
+:keywords: contributing, development, pull requests, issues
+
+== Welcome!
+
+Thank you for considering contributing to Veidly! We're building a privacy-focused, community-driven event platform, and we'd love your help.
+
+== Ways to Contribute
+
+=== 1. Report Bugs
+
+Found a bug? Please create an issue on GitHub:
+
+. Search existing issues first
+. Use the bug report template
+. Include:
+  * Steps to reproduce
+  * Expected behavior
+  * Actual behavior
+  * Screenshots (if applicable)
+  * Environment (browser, OS, etc.)
+
+=== 2. Suggest Features
+
+Have an idea? We'd love to hear it!
+
+. Check if it's already suggested
+. Use the feature request template
+. Explain:
+  * The problem it solves
+  * Your proposed solution
+  * Alternative solutions considered
+  * Who would benefit
+
+=== 3. Improve Documentation
+
+Documentation is crucial! You can:
+
+* Fix typos or unclear explanations
+* Add examples
+* Translate to other languages
+* Create tutorials or guides
+
+=== 4. Write Code
+
+Ready to contribute code? Read on!
+
+== Development Setup
+
+=== Prerequisites
+
+* **Go**: 1.21 or higher
+* **Node.js**: 18 or higher
+* **npm**: 9 or higher
+* **Git**: For version control
+* **Make**: For using Makefile commands
+
+=== Getting Started
+
+. **Fork the repository**
++
+[source,bash]
+----
+# Click "Fork" on GitHub
+# Then clone your fork
+git clone https://github.com/YOUR_USERNAME/veidly.git
+cd veidly.com
+----
+
+. **Set up upstream remote**
++
+[source,bash]
+----
+git remote add upstream https://github.com/original/veidly.git
+git fetch upstream
+----
+
+. **Install dependencies**
++
+[source,bash]
+----
+make install
+----
+
+. **Run development servers**
++
+[source,bash]
+----
+make dev
+----
+
+. **Run tests**
++
+[source,bash]
+----
+make test
+----
+
+== Code Style Guide
+
+=== Go Backend
+
+==== Formatting
+
+* Use `gofmt` for formatting (automatic in most editors)
+* Run `go vet` before committing
+* Follow https://go.dev/doc/effective_go[Effective Go] guidelines
+
+==== Naming Conventions
+
+[source,go]
+----
+// Exported functions: PascalCase
+func CreateEvent() { }
+
+// Private functions: camelCase
+func validateInput() { }
+
+// Constants: PascalCase
+const MaxParticipants = 100
+
+// Variables: camelCase
+var userEmail string
+----
+
+==== Error Handling
+
+[source,go]
+----
+// Good: Handle errors explicitly
+result, err := doSomething()
+if err != nil {
+    log.Printf("Error: %v", err)
+    return err
+}
+
+// Bad: Ignoring errors
+result, _ := doSomething() // Don't do this!
+----
+
+==== Comments
+
+[source,go]
+----
+// Good: Explain why, not what
+// Use BCrypt cost 14 in production for security,
+// but reduce to 4 in tests for speed
+bcryptCost := 14
+if isTestMode() {
+    bcryptCost = 4
+}
+
+// Bad: Stating the obvious
+// Set bcrypt cost to 14
+bcryptCost := 14
+----
+
+=== TypeScript Frontend
+
+==== Formatting
+
+* Use Prettier for formatting
+* 2 spaces for indentation
+* Semicolons required
+* Single quotes for strings
+
+==== Naming Conventions
+
+[source,typescript]
+----
+// Components: PascalCase
+const EventCard = () => { }
+
+// Functions: camelCase
+const handleSubmit = () => { }
+
+// Constants: UPPER_SNAKE_CASE
+const API_BASE_URL = "..."
+
+// Interfaces: PascalCase with 'I' prefix (optional)
+interface IEvent { }
+// or
+interface Event { }
+----
+
+==== React Best Practices
+
+[source,typescript]
+----
+// Good: Functional components with hooks
+const EventList = ({ events }: Props) => {
+  const [filter, setFilter] = useState("");
+
+  useEffect(() => {
+    // Side effects here
+  }, [filter]);
+
+  return <div>...</div>;
+};
+
+// Use TypeScript types
+interface Props {
+  events: Event[];
+  onSelect?: (event: Event) => void;
+}
+----
+
+== Writing Tests
+
+=== Backend Tests
+
+Tests are critical! Aim for high coverage of:
+
+* All API endpoints (integration tests)
+* Validation functions (unit tests)
+* Privacy logic (unit tests)
+* Utility functions (unit tests)
+
+==== Example Integration Test
+
+[source,go]
+----
+func TestCreateEvent(t *testing.T) {
+    // Setup
+    db := setupTestDB(t)
+    defer cleanupTestDB(db)
+
+    // Create test user
+    user := createTestUser(t, db)
+    token := generateTestToken(user.ID)
+
+    // Prepare request
+    event := Event{
+        Title: "Test Event",
+        Description: "Test description here",
+        Category: "social_drinks",
+        // ... other fields
+    }
+
+    // Make request
+    router := setupRouter()
+    w := httptest.NewRecorder()
+    req, _ := http.NewRequest("POST", "/api/events", toJSON(event))
+    req.Header.Set("Authorization", "Bearer " + token)
+    router.ServeHTTP(w, req)
+
+    // Assertions
+    assert.Equal(t, http.StatusCreated, w.Code)
+    assert.Contains(t, w.Body.String(), "Test Event")
+}
+----
+
+==== Example Unit Test
+
+[source,go]
+----
+func TestValidateEvent(t *testing.T) {
+    tests := []struct {
+        name        string
+        event       Event
+        wantErr     bool
+        errContains string
+    }{
+        {
+            name: "Valid event",
+            event: Event{
+                Title: "Valid Title",
+                Description: "Valid description",
+                // ... other fields
+            },
+            wantErr: false,
+        },
+        {
+            name: "Title too short",
+            event: Event{
+                Title: "Hi",
+                // ...
+            },
+            wantErr: true,
+            errContains: "title",
+        },
+    }
+
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            err := ValidateEvent(&tt.event, startTime, endTime)
+            if tt.wantErr {
+                assert.Error(t, err)
+                assert.Contains(t, err.Error(), tt.errContains)
+            } else {
+                assert.NoError(t, err)
+            }
+        })
+    }
+}
+----
+
+==== Running Tests
+
+[source,bash]
+----
+# Run all tests
+make test
+
+# Run with coverage
+make test-coverage
+
+# Run specific test
+go test -v -run TestCreateEvent
+
+# Run tests in watch mode (requires entr)
+ls *.go | entr -c go test -v
+----
+
+=== Frontend Tests
+
+[source,typescript]
+----
+import { render, screen, fireEvent } from '@testing-library/react';
+import EventCard from './EventCard';
+
+describe('EventCard', () => {
+  it('displays event title', () => {
+    const event = {
+      id: 1,
+      title: 'Test Event',
+      description: 'Test description',
+      // ...
+    };
+
+    render(<EventCard event={event} />);
+    expect(screen.getByText('Test Event')).toBeInTheDocument();
+  });
+
+  it('calls onJoin when join button clicked', () => {
+    const onJoin = jest.fn();
+    const event = { /* ... */ };
+
+    render(<EventCard event={event} onJoin={onJoin} />);
+    fireEvent.click(screen.getByText('Join Event'));
+    expect(onJoin).toHaveBeenCalledWith(event.id);
+  });
+});
+----
+
+== Pull Request Process
+
+=== Before You Start
+
+. Check if an issue exists for what you want to work on
+. If not, create one to discuss your approach
+. Wait for maintainer approval before starting major work
+. Fork the repository and create a branch
+
+=== Creating a Pull Request
+
+. **Create a feature branch**
++
+[source,bash]
+----
+git checkout -b feature/your-feature-name
+# or
+git checkout -b fix/bug-description
+----
+
+. **Make your changes**
++
+* Write clean, readable code
+* Follow the code style guide
+* Add tests for new functionality
+* Update documentation if needed
+
+. **Test thoroughly**
++
+[source,bash]
+----
+# Run all tests
+make test
+
+# Run linters
+go vet ./...
+cd frontend && npm run lint
+
+# Build to ensure no errors
+make build
+----
+
+. **Commit your changes**
++
+[source,bash]
+----
+git add .
+git commit -m "feat: add event filtering by language"
+----
++
+**Commit Message Format:**
++
+[source]
+----
+<type>: <description>
+
+[optional body]
+
+[optional footer]
+----
++
+**Types:**
+* `feat`: New feature
+* `fix`: Bug fix
+* `docs`: Documentation only
+* `style`: Code style changes (formatting)
+* `refactor`: Code refactoring
+* `test`: Adding or updating tests
+* `chore`: Maintenance tasks
++
+**Examples:**
++
+[source]
+----
+feat: add calendar export functionality
+
+fix: resolve null pointer in event creation
+
+docs: update API documentation for privacy endpoints
+
+test: add integration tests for event filtering
+----
+
+. **Push to your fork**
++
+[source,bash]
+----
+git push origin feature/your-feature-name
+----
+
+. **Create Pull Request**
++
+* Go to GitHub and click "New Pull Request"
+* Fill out the PR template
+* Link related issues (e.g., "Fixes #123")
+* Add screenshots for UI changes
+* Request review from maintainers
+
+=== Pull Request Checklist
+
+Before submitting, ensure:
+
+☐ Code follows style guidelines +
+☐ All tests pass (`make test`) +
+☐ New tests added for new functionality +
+☐ Documentation updated (if needed) +
+☐ No merge conflicts with main branch +
+☐ Commit messages are clear and descriptive +
+☐ PR description explains what and why +
+☐ Screenshots included (for UI changes) +
+☐ No secrets or credentials in code +
+☐ Code is commented where necessary
+
+=== Review Process
+
+. **Automated Checks**
+   * GitHub Actions runs tests automatically
+   * All checks must pass before merge
+
+. **Code Review**
+   * Maintainer reviews your code
+   * May request changes or improvements
+   * Discussion happens in PR comments
+
+. **Address Feedback**
++
+[source,bash]
+----
+# Make requested changes
+git add .
+git commit -m "refactor: address review feedback"
+git push origin feature/your-feature-name
+----
+
+. **Merge**
+   * Once approved, maintainer merges PR
+   * Your changes are now in main branch!
+   * Celebrate! 🎉
+
+== Project Structure
+
+Understanding the structure helps you navigate:
+
+[source]
+----
+veidly.com/
+├── backend/                # Go backend
+│   ├── main.go            # Entry point, routing
+│   ├── handlers.go        # HTTP handlers
+│   ├── models.go          # Data models
+│   ├── validation.go      # Input validation
+│   ├── privacy.go         # Privacy logic
+│   ├── utils.go           # Utility functions
+│   ├── middleware.go      # HTTP middleware
+│   ├── email.go           # Email service
+│   ├── ics.go             # Calendar generation
+│   ├── *_test.go          # Test files
+│   ├── go.mod             # Dependencies
+│   └── docs/              # Antora documentation
+│       └── modules/ROOT/
+│           ├── pages/     # Documentation pages
+│           └── nav.adoc   # Navigation
+├── frontend/              # React frontend
+│   ├── src/
+│   │   ├── components/    # React components
+│   │   ├── pages/         # Page components
+│   │   ├── contexts/      # React contexts
+│   │   ├── services/      # API services
+│   │   └── types/         # TypeScript types
+│   ├── public/            # Static assets
+│   └── package.json       # npm dependencies
+├── terraform/             # AWS infrastructure
+│   ├── main.tf            # Terraform config
+│   └── variables.tf       # Variables
+├── .github/
+│   └── workflows/         # CI/CD pipelines
+├── Makefile               # Development commands
+└── README.md              # Project readme
+----
+
+== Common Tasks
+
+=== Adding a New API Endpoint
+
+. **Define the handler** in `handlers.go`:
++
+[source,go]
+----
+func myNewHandler(c *gin.Context) {
+    // Implementation
+    c.JSON(200, gin.H{"message": "Success"})
+}
+----
+
+. **Add the route** in `main.go`:
++
+[source,go]
+----
+api.GET("/my-endpoint", myNewHandler)
+// or for protected routes:
+api.GET("/my-endpoint", authMiddleware(), myNewHandler)
+----
+
+. **Write tests** in `handlers_test.go` or `handlers_additional_test.go`
+
+. **Update API documentation** in `docs/modules/ROOT/pages/api.adoc`
+
+=== Adding a New Database Field
+
+. **Update the model** in `models.go`:
++
+[source,go]
+----
+type Event struct {
+    // ... existing fields
+    NewField string `json:"new_field"`
+}
+----
+
+. **Add migration** in `initDB()` in `main.go`:
++
+[source,go]
+----
+_, err = db.Exec(`
+    ALTER TABLE events ADD COLUMN new_field TEXT DEFAULT ''
+`)
+----
+
+. **Update queries** in handlers to include new field
+
+. **Update validation** in `validation.go` if needed
+
+. **Write tests** for the new field
+
+=== Adding a New Frontend Component
+
+. **Create component** in `frontend/src/components/`:
++
+[source,typescript]
+----
+// MyComponent.tsx
+import React from 'react';
+
+interface Props {
+  title: string;
+}
+
+const MyComponent: React.FC<Props> = ({ title }) => {
+  return <div>{title}</div>;
+};
+
+export default MyComponent;
+----
+
+. **Import and use** in parent component
+
+. **Add styles** if needed (inline or CSS module)
+
+. **Write tests** in `MyComponent.test.tsx`
+
+== Best Practices
+
+=== Security
+
+* **Never commit secrets**: Use environment variables
+* **Validate all input**: Both client and server side
+* **Sanitize HTML**: Prevent XSS attacks
+* **Use parameterized queries**: Prevent SQL injection
+* **Hash passwords**: Always use BCrypt, never store plain text
+* **Verify email**: Require verification for sensitive actions
+
+=== Privacy
+
+* **Respect user privacy settings**: Always check privacy flags
+* **Hide contact info**: From non-participants
+* **Email verification**: Required to join events
+* **Admin oversight**: Log all admin actions
+* **GDPR compliance**: Consider data protection regulations
+
+=== Performance
+
+* **Database indexes**: Add for frequently queried columns
+* **Limit query results**: Don't return unbounded data
+* **Cache when possible**: Reduce repeated calculations
+* **Optimize images**: Compress before uploading
+* **Lazy load**: Components and images when appropriate
+
+=== Code Quality
+
+* **DRY**: Don't Repeat Yourself - extract common code
+* **KISS**: Keep It Simple, Stupid - avoid over-engineering
+* **YAGNI**: You Aren't Gonna Need It - don't add unused features
+* **Test first**: Write tests for bugs before fixing
+* **Readable > Clever**: Prioritize clarity over cleverness
+
+== Communication
+
+=== Where to Ask Questions
+
+* **GitHub Discussions**: General questions, ideas
+* **GitHub Issues**: Bug reports, feature requests
+* **Pull Request Comments**: Code-specific questions
+
+=== Being Respectful
+
+* Be patient and kind
+* Assume good intentions
+* Provide constructive feedback
+* Celebrate contributions
+* Remember: everyone is learning!
+
+== Recognition
+
+Contributors are recognized in:
+
+* GitHub contributors page
+* Release notes (for significant contributions)
+* Community showcase (planned)
+
+## Financial Support
+
+While code contributions are amazing, financial support helps too:
+
+* **Patronite**: Monthly support
+* **BuyCoffee.to**: One-time donations
+* **GitHub Sponsors**: Platform support
+
+All funds go toward:
+
+* Server costs
+* Domain registration
+* Development tools
+* Community events
+
+== License
+
+By contributing, you agree that your contributions will be licensed under the MIT License.
+
+## Code of Conduct
+
+We follow the [Contributor Covenant](https://www.contributor-covenant.org/):
+
+* **Be respectful**: Treat everyone with respect
+* **Be inclusive**: Welcome diverse perspectives
+* **Be collaborative**: Work together constructively
+* **Be professional**: Keep discussions focused on the project
+* **Be patient**: Remember that everyone is learning
+
+Violations can be reported to project maintainers.
+
+== Getting Help
+
+Stuck? Here's how to get help:
+
+. **Check documentation**: Read relevant docs first
+. **Search issues**: Someone may have had the same problem
+. **Ask in discussions**: Post in GitHub Discussions
+. **Join community**: (Discord/Slack - if available)
+
+== What Makes a Great Contribution?
+
+* **Clear purpose**: Solves a real problem
+* **Well tested**: Includes comprehensive tests
+* **Documented**: Code and user docs updated
+* **Clean code**: Follows project style
+* **Small scope**: Focused on one thing
+* **Backward compatible**: Doesn't break existing features
+
+== Thank You!
+
+Every contribution, no matter how small, makes Veidly better. Thank you for being part of our community! 💜
+
+**Happy coding!** 🚀
+
+---
+
+Questions? Open an issue or start a discussion on GitHub!

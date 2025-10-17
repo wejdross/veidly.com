@@ -1,0 +1,85 @@
+= Veidly - Social Event Platform
+
+== Overview
+
+Veidly is a privacy-focused social event platform that allows users to create, discover, and join local events while maintaining control over their personal information.
+
+== Current Status
+
+*Version:* 1.0.0 +
+*Backend Coverage:* 61.7% +
+*Frontend Coverage:* 64.9% +
+*Last Updated:* October 2025
+
+== Key Features
+
+* 🔐 *Privacy-First Design* - Users control who sees their information
+* 📍 *Location-Based Events* - Find events near you with interactive maps
+* 💬 *Participant-Only Comments* - Communicate securely within events
+* 🚫 *User Blocking* - Control who can interact with you
+* 📊 *Event Reports* - Community-driven moderation
+* ✉️ *Email Verification* - Secure authentication flow
+* 🎨 *Modern UI* - React + TypeScript frontend
+* ⚡ *Fast Backend* - Go + SQLite for performance
+
+== Technology Stack
+
+=== Backend
+* *Language:* Go 1.21+
+* *Framework:* Gin
+* *Database:* SQLite3
+* *Authentication:* JWT tokens
+* *Email:* SMTP integration
+* *Testing:* testify, 61.7% coverage
+
+=== Frontend
+* *Framework:* React 18 + TypeScript
+* *Routing:* React Router v6
+* *Maps:* Leaflet
+* *Testing:* Vitest + Testing Library, 64.9% coverage
+* *Build:* Vite
+
+== Quick Start
+
+=== Development
+
+[source,bash]
+----
+# Backend
+cd backend
+go run .
+
+# Frontend  
+cd frontend
+npm install
+npm run dev
+----
+
+=== Testing
+
+[source,bash]
+----
+# Backend tests
+cd backend
+go test -cover ./...
+
+# Frontend tests
+cd frontend
+npm test
+----
+
+== Recent Changes (Sprint 3 - Privacy Improvements)
+
+* ✅ Removed `creator_contact` field for enhanced privacy
+* ✅ Implemented participant-only comments system
+* ✅ Added user blocking functionality
+* ✅ Enhanced privacy filters for event information
+* ✅ Added event reporting system
+
+== Next Steps
+
+* Reach 70% test coverage (current: ~63% average)
+* Production deployment to Hetzner VPS
+* SSL certificate automation with Let's Encrypt
+* Database backup automation
+* Log aggregation setup

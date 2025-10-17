@@ -1,0 +1,487 @@
+= Architecture Overview
+:description: Technical architecture and system design of Veidly
+:keywords: architecture, design, backend, frontend, database
+
+== System Overview
+
+Veidly is built as a modern web application with a clear separation between backend and frontend, following REST API principles.
+
+[ditaa]
+....
+                     ┌──────────────────┐
+                     │                  │
+                     │  React Frontend  │
+                     │   (TypeScript)   │
+                     │                  │
+                     └────────┬─────────┘
+                              │
+                              │ HTTPS/REST
+                              │
+                     ┌────────▼─────────┐
+                     │                  │
+                     │   Go Backend     │
+                     │   (Gin Web)      │
+                     │                  │
+                     └────────┬─────────┘
+                              │
+                              │ SQL
+                              │
+                     ┌────────▼─────────┐
+                     │                  │
+                     │  SQLite Database │
+                     │                  │
+                     └──────────────────┘
+....
+
+== Backend Architecture
+
+=== Technology Stack
+
+* **Language**: Go 1.21+
+* **Web Framework**: Gin
+* **Database**: SQLite (with plans for PostgreSQL migration)
+* **Authentication**: JWT tokens with BCrypt password hashing
+* **Email**: Mailgun API integration
+* **Calendar**: ICS file generation
+
+=== Project Structure
+
+[source]
+----
+backend/
+├── main.go                    # Application entry point, routing, middleware
+├── handlers.go                # HTTP request handlers
+├── handlers_test.go           # Integration tests
+├── handlers_additional_test.go # Additional integration tests
+├── handlers_auth_email.go     # Authentication and email handlers
+├── models.go                  # Data models and structs
+├── validation.go              # Input validation logic
+├── validation_test.go         # Validation unit tests
+├── privacy.go                 # Privacy filtering logic
+├── privacy_test.go            # Privacy unit tests
+├── utils.go                   # Utility functions (slugs, random strings)
+├── utils_test.go              # Utils unit tests
+├── ics.go                     # ICS calendar file generation
+├── email.go                   # Email service integration
+├── middleware.go              # HTTP middleware (auth, rate limiting, etc.)
+├── go.mod                     # Go module dependencies
+└── go.sum                     # Dependency checksums
+----
+
+=== Core Components
+
+==== Database Layer
+
+* Single SQLite file for simplicity and portability
+* Connection pooling for performance
+* Parameterized queries to prevent SQL injection
+* Database migrations handled in `initDB()`
+
+Key tables:
+[source,sql]
+----
+users
+├── id (PRIMARY KEY)
+├── email (UNIQUE)
+├── password_hash
+├── name
+├── email_verified
+├── verification_token
+└── created_at
+
+events
+├── id (PRIMARY KEY)
+├── user_id (FOREIGN KEY → users.id)
+├── title
+├── description
+├── category
+├── latitude/longitude
+├── start_time/end_time
+├── privacy settings (hide_organizer_until_joined, etc.)
+├── slug (UNIQUE)
+└── created_at
+
+event_participants
+├── event_id (FOREIGN KEY → events.id)
+├── user_id (FOREIGN KEY → users.id)
+└── joined_at
+----
+
+==== Middleware Stack
+
+Request flow through middleware layers:
+
+. **SecurityHeadersMiddleware**: Sets security headers (X-Frame-Options, CSP, etc.)
+. **LoggerMiddleware**: Request logging with method, path, status, duration
+. **ErrorHandlerMiddleware**: Centralized error handling and recovery
+. **RequestIDMiddleware**: Adds unique request ID for tracking
+. **RequestSizeLimitMiddleware**: Prevents oversized requests
+. **RateLimitMiddleware**: IP-based rate limiting (100 req/min default)
+. **AuthMiddleware**: JWT validation for protected routes
+. **AdminAuthMiddleware**: Admin-only route protection
+
+==== Privacy System
+
+Multi-layered privacy protection:
+
+* **ApplyPrivacyFilters()**: Filters event data based on viewer status
+* **CheckEventViewPermission()**: Controls who can see events
+* **CheckEventJoinPermission()**: Controls who can join events
+* **GetParticipantsWithPrivacy()**: Filters participant lists
+
+Privacy rules:
+[source,go]
+----
+if event.HideOrganizerUntilJoined && !isParticipant {
+    event.CreatorName = "🔒 Join to see organizer"
+    event.CreatorContact = ""
+}
+
+if !viewerIsVerified {
+    event.CreatorContact = "🔒 Verify email to see contact"
+}
+----
+
+==== Authentication Flow
+
+. User registers → Email + hashed password stored
+. Email verification token generated and sent
+. User clicks verification link → Token validated
+. User logs in → JWT token issued
+. Subsequent requests → JWT validated via middleware
+
+==== API Design
+
+REST endpoints organized by resource:
+
+[source]
+----
+/api
+├── /auth
+│   ├── POST /register
+│   ├── POST /login
+│   └── GET /verify-email/:token
+├── /events
+│   ├── GET  /               (list with filters)
+│   ├── POST /               (create, auth required)
+│   ├── GET  /:id            (view details)
+│   ├── PUT  /:id            (update, owner required)
+│   ├── DELETE /:id          (delete, owner required)
+│   ├── POST /:id/join       (join event)
+│   ├── DELETE /:id/leave    (leave event)
+│   └── GET  /:id/participants
+├── /public
+│   └── /events/:slug
+│       ├── GET /            (public view)
+│       └── GET /ics         (calendar download)
+├── /profile
+│   ├── GET  /               (own profile)
+│   └── PUT  /               (update profile)
+├── /users/:id               (view user profile)
+├── /search-places           (location search)
+└── /admin
+    ├── GET /users
+    ├── PUT /users/:id/block
+    ├── PUT /users/:id/unblock
+    ├── PUT /users/:id/verify-email
+    ├── GET /events
+    ├── PUT /events/:id
+    └── DELETE /events/:id
+----
+
+== Frontend Architecture
+
+=== Technology Stack
+
+* **Framework**: React 18
+* **Language**: TypeScript
+* **Build Tool**: Vite
+* **Routing**: React Router v6
+* **State Management**: Context API + hooks
+* **Maps**: Leaflet + OpenStreetMap
+* **HTTP Client**: Fetch API
+
+=== Project Structure
+
+[source]
+----
+frontend/src/
+├── components/               # Reusable UI components
+│   ├── EventCard.tsx        # Event list item
+│   ├── EventForm.tsx        # Create/edit event form
+│   ├── EventMap.tsx         # Interactive map
+│   ├── Navbar.tsx           # Navigation bar
+│   └── ...
+├── contexts/                # React contexts
+│   └── AuthContext.tsx      # Authentication state
+├── pages/                   # Route pages
+│   ├── Home.tsx             # Landing page
+│   ├── Events.tsx           # Event list/map view
+│   ├── EventDetails.tsx     # Single event view
+│   ├── CreateEvent.tsx      # Event creation
+│   ├── Profile.tsx          # User profile
+│   └── ...
+├── services/                # API services
+│   └── api.ts               # HTTP request functions
+├── types/                   # TypeScript types
+│   └── index.ts             # Type definitions
+├── App.tsx                  # Root component
+├── main.tsx                 # Application entry
+└── index.css                # Global styles
+----
+
+=== State Management
+
+Authentication state managed via Context API:
+
+[source,typescript]
+----
+AuthContext provides:
+├── user (current user object or null)
+├── token (JWT token)
+├── login(email, password)
+├── logout()
+├── register(email, password, name)
+└── updateUser(userData)
+----
+
+=== API Communication
+
+All backend requests go through centralized API service:
+
+[source,typescript]
+----
+// Example API call with authentication
+const response = await fetch(`${API_URL}/api/events`, {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${token}`
+  },
+  body: JSON.stringify(eventData)
+});
+----
+
+== Data Flow
+
+=== Creating an Event
+
+. User fills out EventForm component
+. Form validates input client-side
+. POST request to `/api/events` with JWT token
+. Backend validates JWT → extracts user ID
+. Backend validates event data (validation.go)
+. Backend generates unique slug (utils.go)
+. Event inserted into database
+. Response with created event returned
+. Frontend updates UI, redirects to event page
+
+=== Viewing Events with Privacy
+
+. User visits Events page
+. GET request to `/api/events` (optionally with filters)
+. Backend fetches events from database
+. For each event:
+  * Check viewer's authentication status
+  * Check email verification status
+  * Check if viewer is participant
+  * Apply privacy filters (privacy.go)
+  * Hide/show organizer info based on rules
+. Filtered events returned to frontend
+. Frontend displays events on map and list
+
+=== Joining an Event
+
+. User clicks "Join Event" button
+. POST request to `/api/events/:id/join`
+. Backend validates:
+  * User is authenticated
+  * Email is verified
+  * Event exists and not at capacity
+  * User not already a participant
+. Insert into `event_participants` table
+. Return success response
+. Frontend updates UI showing participant status
+
+== Security Architecture
+
+=== Authentication Security
+
+* Passwords hashed with BCrypt (cost factor 14 in production)
+* JWT tokens with configurable secret
+* Email verification required before joining events
+* Tokens expire after 72 hours
+
+=== Input Validation
+
+* All user input validated server-side
+* Length limits on all text fields
+* HTML escaping to prevent XSS
+* SQL injection prevented via parameterized queries
+* Coordinate validation for map locations
+
+=== Privacy Protection
+
+* Email addresses hidden from non-participants
+* Contact methods require joining event
+* Organizer identity can be hidden until joining
+* Participant lists can be hidden
+* Admin override for moderation
+
+=== Rate Limiting
+
+* IP-based rate limiting (100 requests/minute default)
+* Prevents brute force attacks
+* Configurable per-endpoint limits
+
+== Performance Considerations
+
+=== Database
+
+* SQLite WAL mode for concurrent reads
+* Indexes on frequently queried columns (email, slug, created_at)
+* Connection pooling to reuse connections
+* Prepared statements for common queries
+
+=== Frontend
+
+* Vite for fast builds and HMR
+* Code splitting via React lazy loading
+* Map tiles cached by browser
+* Minimal JavaScript bundle size
+
+=== Caching Strategy
+
+* Browser caching for static assets
+* Database connection pool
+* Future: Redis for session storage
+
+== Deployment Architecture
+
+=== Production Setup
+
+[source]
+----
+AWS EC2 (t2.micro)
+├── Nginx (reverse proxy)
+├── Go binary (systemd service)
+├── SQLite database file
+└── Frontend (static files)
+----
+
+=== Build Process
+
+. Frontend: `npm run build` → static files in `dist/`
+. Backend: `go build` → single binary
+. Deploy binary and dist/ to server
+. Nginx serves frontend, proxies API to backend
+. Systemd manages backend process
+
+=== Infrastructure as Code
+
+* Terraform configurations in `/terraform`
+* AWS resources: EC2, Security Groups, Elastic IP
+* Budget monitoring and alerts
+* Free tier optimized
+
+== Testing Strategy
+
+=== Backend Tests
+
+* **Integration Tests**: Full request/response cycle testing
+* **Unit Tests**: Individual function testing (validation, utils, privacy)
+* **Test Coverage**: 48.1% overall (target: 90%)
+* **Test Database**: Isolated `veidly-test-suite.db`
+
+Key test files:
+* `handlers_test.go`: Main API endpoint tests
+* `handlers_additional_test.go`: Additional integration tests
+* `validation_test.go`: Input validation tests
+* `privacy_test.go`: Privacy logic tests
+* `utils_test.go`: Utility function tests
+
+=== Frontend Tests
+
+* Component testing with Vitest
+* Integration tests for user flows
+* End-to-end testing (planned)
+
+== Monitoring and Logging
+
+=== Logging
+
+* Structured logging with log levels
+* Request/response logging via middleware
+* Error stack traces in development
+* Production logs to systemd journal
+
+=== Metrics (Planned)
+
+* Request latency tracking
+* Error rate monitoring
+* Database query performance
+* Active user count
+
+== Future Architecture Improvements
+
+=== Scalability
+
+* **Database**: Migrate from SQLite to PostgreSQL
+* **Caching**: Implement Redis for sessions and frequently accessed data
+* **Load Balancing**: Multiple backend instances behind load balancer
+* **CDN**: CloudFront for static assets
+
+=== Features
+
+* **WebSocket**: Real-time event updates
+* **Search**: Elasticsearch for advanced event search
+* **Storage**: S3 for event photos/attachments
+* **Notifications**: Push notifications via FCM
+
+=== Security
+
+* **2FA**: Two-factor authentication option
+* **OAuth**: Social login (Google, GitHub)
+* **Audit Log**: Track admin actions
+* **GDPR Tools**: Data export and deletion
+
+== Development Workflow
+
+=== Local Development
+
+. Start backend: `make dev` or `go run .`
+. Start frontend: `cd frontend && npm run dev`
+. Backend runs on :8080
+. Frontend runs on :5173 with API proxy
+
+=== Code Quality
+
+* Go vet for static analysis
+* golangci-lint for comprehensive linting
+* ESLint + TypeScript for frontend
+* Prettier for code formatting
+
+=== CI/CD Pipeline
+
+GitHub Actions workflow:
+
+. Lint Go code
+. Run Go tests with coverage
+. Build Go binary
+. Lint TypeScript code
+. Run frontend tests
+. Build frontend assets
+. Deploy to staging (on main branch)
+. Deploy to production (on release tag)
+
+== Conclusion
+
+Veidly's architecture prioritizes:
+
+* **Privacy**: Multiple layers of user privacy protection
+* **Security**: Email verification, strong authentication, input validation
+* **Simplicity**: Monolithic design for easy deployment and maintenance
+* **Scalability**: Clear migration path to distributed architecture
+* **Developer Experience**: Modern tooling, comprehensive testing, clear code structure
+
+The architecture supports the current needs while providing a solid foundation for future growth.

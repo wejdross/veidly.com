@@ -1,0 +1,69 @@
+---
+- name: Update apt cache
+  apt:
+    update_cache: yes
+    cache_valid_time: 3600
+
+- name: Install system dependencies
+  apt:
+    name:
+      - git
+      - curl
+      - wget
+      - sqlite3
+      - build-essential
+      - python3-certbot-nginx
+    state: present
+
+- name: Install Go
+  block:
+    - name: Download Go
+      get_url:
+        url: https://go.dev/dl/go1.21.5.linux-amd64.tar.gz
+        dest: /tmp/go1.21.5.linux-amd64.tar.gz
+
+    - name: Extract Go
+      unarchive:
+        src: /tmp/go1.21.5.linux-amd64.tar.gz
+        dest: /usr/local
+        remote_src: yes
+        creates: /usr/local/go/bin/go
+
+    - name: Set Go environment
+      lineinfile:
+        path: /etc/profile.d/golang.sh
+        line: 'export PATH=$PATH:/usr/local/go/bin'
+        create: yes
+
+- name: Install Node.js
+  block:
+    - name: Add NodeSource repository
+      shell: curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+      args:
+        creates: /etc/apt/sources.list.d/nodesource.list
+
+    - name: Install Node.js
+      apt:
+        name: nodejs
+        state: present
+        update_cache: yes
+
+- name: Create application user
+  user:
+    name: "{{ app_user }}"
+    shell: /bin/bash
+    home: /home/{{ app_user }}
+    create_home: yes
+
+- name: Create required directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ app_user }}"
+    group: "{{ app_user }}"
+    mode: '0755'
+  loop:
+    - "{{ app_dir }}"
+    - "{{ db_dir }}"
+    - "{{ backup_dir }}"
+    - "{{ log_dir }}"

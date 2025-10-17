@@ -1,0 +1,467 @@
+= Email Verification System
+:description: Complete guide to the email verification and password reset system
+:keywords: email, verification, password reset, mailgun, security
+
+== Overview
+
+Veidly implements a comprehensive email verification system using Mailgun to ensure users have valid email addresses before they can create events. The system includes:
+
+* Email verification for new user registrations
+* Password reset functionality
+* Email-verified requirement for event creation
+* Automatic welcome emails after verification
+
+== Architecture
+
+=== Components
+
+. **Backend Email Service** (`email.go`)
+** Mailgun integration
+** Email templates (HTML + text)
+** Token generation and management
+
+. **Database Tables**
+** `email_verification_tokens` - Stores verification tokens
+** `password_reset_tokens` - Stores password reset tokens
+** `users.email_verified` - Boolean flag for verification status
+
+. **API Endpoints**
+** `POST /api/auth/register` - Sends verification email
+** `POST /api/auth/verify-email` - Verifies email with token
+** `POST /api/auth/forgot-password` - Initiates password reset
+** `POST /api/auth/reset-password` - Resets password with token
+** `POST /api/auth/resend-verification` - Resends verification email
+
+. **Frontend Components**
+** Email verification page
+** Password reset request page
+** Password reset page with token
+** Verification status indicators
+
+== Configuration
+
+=== Environment Variables
+
+[source,bash]
+----
+# Mailgun Configuration
+MAILGUN_DOMAIN=your-domain.mailgun.org
+MAILGUN_API_KEY=your-mailgun-api-key
+MAILGUN_FROM_EMAIL=noreply@veidly.com
+BASE_URL=http://localhost:5173  # Frontend URL for links
+----
+
+=== Setup Steps
+
+. **Register with Mailgun**
+** Sign up at https://www.mailgun.com
+** Verify your domain or use sandbox domain for testing
+** Get your API key from the dashboard
+
+. **Configure Environment**
+** Copy values to `.env` file
+** Update `MAILGUN_DOMAIN` with your domain
+** Set `MAILGUN_API_KEY` from Mailgun dashboard
+** Configure `MAILGUN_FROM_EMAIL` (must be from verified domain)
+** Set `BASE_URL` to your frontend URL
+
+. **Database Migration**
+** Migrations run automatically on server start
+** Adds `email_verified` column to `users` table
+** Creates `email_verification_tokens` table
+** Creates `password_reset_tokens` table
+** Auto-verifies existing users for backward compatibility
+
+== Email Verification Flow
+
+=== New User Registration
+
+. User registers with email and password
+. System creates user account with `email_verified = false`
+. System generates verification token (expires in 24 hours)
+. System sends verification email via Mailgun
+. User receives email with verification link
+. User clicks link → redirected to `/verify-email?token=xxx`
+. Frontend sends token to backend
+. Backend validates token and marks email as verified
+. System sends welcome email
+. User can now create events
+
+=== Token Structure
+
+[source,go]
+----
+type EmailVerificationToken struct {
+    ID        int
+    UserID    int
+    Token     string    // 64-character hex string
+    ExpiresAt time.Time // 24 hours from creation
+    CreatedAt time.Time
+}
+----
+
+=== Security Features
+
+* **Secure tokens**: 32-byte random tokens (64 hex characters)
+* **Expiration**: Tokens expire after 24 hours
+* **Single use**: Tokens deleted after successful verification
+* **User linking**: Tokens tied to specific user ID
+* **Database constraints**: UNIQUE constraint on token column
+
+== Password Reset Flow
+
+=== Request Reset
+
+. User clicks "Forgot Password"
+. User enters email address
+. System checks if user exists
+. System generates reset token (expires in 1 hour)
+. System sends password reset email
+. User receives email with reset link
+
+=== Reset Password
+
+. User clicks link → redirected to `/reset-password?token=xxx`
+. User enters new password
+. Frontend sends token + new password to backend
+. Backend validates token (not expired, not used)
+. Backend updates password and marks token as used
+. User can log in with new password
+
+=== Token Structure
+
+[source,go]
+----
+type PasswordResetToken struct {
+    ID        int
+    UserID    int
+    Token     string    // 64-character hex string
+    ExpiresAt time.Time // 1 hour from creation
+    Used      bool      // Prevents token reuse
+    CreatedAt time.Time
+}
+----
+
+=== Security Features
+
+* **Short expiration**: 1 hour validity
+* **One-time use**: `used` flag prevents reuse
+* **Secure tokens**: Same random generation as verification
+* **Rate limiting**: Backend can implement rate limiting per IP/email
+* **Password requirements**: Minimum 8 characters
+
+== Event Creation Restriction
+
+=== Verification Check
+
+[source,go]
+----
+func createEvent(c *gin.Context) {
+    userID := c.GetInt("user_id")
+
+    // Check if email is verified
+    var emailVerified bool
+    err := db.QueryRow(`
+        SELECT email_verified FROM users WHERE id = ?
+    `, userID).Scan(&emailVerified)
+
+    if !emailVerified {
+        c.JSON(http.StatusForbidden, gin.H{
+            "error": "Please verify your email before creating events",
+            "code": "EMAIL_NOT_VERIFIED"
+        })
+        return
+    }
+
+    // Continue with event creation...
+}
+----
+
+=== User Experience
+
+* **Unverified users**:
+** Can browse events
+** Can join events
+** Cannot create events
+** See verification banner/prompt
+
+* **Verified users**:
+** Full access to all features
+** "Verified" badge in profile (optional)
+** No restrictions
+
+== Email Templates
+
+=== Verification Email
+
+**Subject**: "Verify your Veidly account"
+
+**Content**:
+* Personalized greeting
+* Call-to-action button
+* Plain text link as fallback
+* 24-hour expiration notice
+* Security notice ("if you didn't sign up...")
+
+=== Password Reset Email
+
+**Subject**: "Reset your Veidly password"
+
+**Content**:
+* Personalized greeting
+* Reset password button
+* Plain text link as fallback
+* 1-hour expiration notice
+* Security warning
+* "Ignore if you didn't request" notice
+
+=== Welcome Email
+
+**Subject**: "Welcome to Veidly - Let's get started!"
+
+**Content**:
+* Congratulations message
+* Feature highlights
+* Call-to-action to start exploring
+* Community guidelines (optional)
+
+== API Reference
+
+=== Verify Email
+
+[source,http]
+----
+POST /api/auth/verify-email
+Content-Type: application/json
+
+{
+  "token": "a1b2c3d4..."
+}
+
+# Success Response (200)
+{
+  "message": "Email verified successfully",
+  "user": {
+    "id": 1,
+    "email": "user@example.com",
+    "email_verified": true,
+    ...
+  }
+}
+
+# Error Responses
+400 - Invalid or expired token
+404 - Token not found
+500 - Server error
+----
+
+=== Resend Verification
+
+[source,http]
+----
+POST /api/auth/resend-verification
+Authorization: Bearer <token>
+
+# Success Response (200)
+{
+  "message": "Verification email sent"
+}
+
+# Error Responses
+400 - Email already verified
+429 - Too many requests
+500 - Server error
+----
+
+=== Forgot Password
+
+[source,http]
+----
+POST /api/auth/forgot-password
+Content-Type: application/json
+
+{
+  "email": "user@example.com"
+}
+
+# Success Response (200)
+{
+  "message": "Password reset email sent"
+}
+
+# Note: Always returns 200 to prevent email enumeration
+----
+
+=== Reset Password
+
+[source,http]
+----
+POST /api/auth/reset-password
+Content-Type: application/json
+
+{
+  "token": "a1b2c3d4...",
+  "new_password": "newSecurePassword123"
+}
+
+# Success Response (200)
+{
+  "message": "Password reset successfully"
+}
+
+# Error Responses
+400 - Invalid token, expired, or used
+400 - Password too weak
+500 - Server error
+----
+
+== Testing
+
+=== Unit Tests
+
+[source,bash]
+----
+# Test email service
+go test -v -run TestEmailService
+
+# Test verification flow
+go test -v -run TestEmailVerification
+
+# Test password reset
+go test -v -run TestPasswordReset
+----
+
+=== Integration Tests
+
+. Register new user → Check email sent
+. Verify with valid token → Check user verified
+. Verify with expired token → Check error
+. Verify with invalid token → Check error
+. Create event without verification → Check forbidden
+. Create event after verification → Check success
+. Request password reset → Check email sent
+. Reset with valid token → Check password changed
+. Reset with used token → Check error
+
+=== Manual Testing
+
+. **Sandbox Mode**: Use Mailgun sandbox domain for testing
+. **Email Logs**: Check Mailgun dashboard for sent emails
+. **Token Expiration**: Test with past dates in database
+. **Error Handling**: Test all error conditions
+
+== Troubleshooting
+
+=== Common Issues
+
+**Emails not sending**
+
+* Check Mailgun API key and domain configuration
+* Verify domain ownership in Mailgun dashboard
+* Check email service logs for errors
+* Test with sandbox domain first
+
+**Verification link not working**
+
+* Check `BASE_URL` environment variable
+* Verify frontend routing is correct
+* Check token expiration (24 hours)
+* Look for token in database
+
+**"Email not verified" error persists**
+
+* Check database: `SELECT email_verified FROM users WHERE id = X`
+* Verify token was processed correctly
+* Check for migration errors in logs
+
+**Password reset not working**
+
+* Verify token is not expired (1 hour)
+* Check `used` flag in database
+* Ensure new password meets requirements (8+ chars)
+
+=== Debugging
+
+[source,bash]
+----
+# Check email service initialization
+grep "Email service" logs/app.log
+
+# Check verification tokens
+sqlite3 veidly.db "SELECT * FROM email_verification_tokens;"
+
+# Check reset tokens
+sqlite3 veidly.db "SELECT * FROM password_reset_tokens;"
+
+# Check user verification status
+sqlite3 veidly.db "SELECT id, email, email_verified FROM users;"
+----
+
+== Security Considerations
+
+=== Best Practices
+
+. **Token Security**
+** Use cryptographically secure random generation
+** Store tokens hashed (optional, but recommended for production)
+** Set appropriate expiration times
+** Delete tokens after use
+
+. **Rate Limiting**
+** Limit verification email requests per user
+** Limit password reset requests per IP/email
+** Implement exponential backoff for repeated failures
+
+. **Email Validation**
+** Validate email format on frontend and backend
+** Check for disposable email domains (optional)
+** Implement email verification before sensitive operations
+
+. **Password Security**
+** Enforce minimum password length (8+ characters)
+** Encourage strong passwords with complexity requirements
+** Use bcrypt for password hashing
+** Implement password strength meter on frontend
+
+. **User Experience**
+** Clear error messages without exposing security details
+** Resend verification option for users
+** Password reset link expiration explained clearly
+** Success confirmations for all operations
+
+== Production Deployment
+
+=== Checklist
+
+[x] Configure production Mailgun domain
+[x] Verify domain ownership (DNS records)
+[x] Set strong JWT secret
+[x] Configure correct BASE_URL
+[x] Enable HTTPS for all email links
+[x] Set up email monitoring/alerts
+[x] Configure rate limiting
+[x] Test all email flows in staging
+[x] Set up logging for email events
+[x] Configure error alerting
+
+=== Monitoring
+
+* **Email Delivery**: Monitor Mailgun dashboard for bounces/failures
+* **Token Usage**: Track verification and reset success rates
+* **User Verification**: Monitor percentage of verified users
+* **Error Rates**: Alert on high failure rates
+
+== Future Enhancements
+
+* Two-factor authentication (2FA)
+* Email change verification
+* SMS verification as alternative
+* Social login integration
+* Email preferences/notifications system
+* Batch email notifications for events
+
+== References
+
+* link:https://documentation.mailgun.com/en/latest/[Mailgun Documentation]
+* xref:security/authentication.adoc[Authentication & Security]
+* xref:api/endpoints.adoc[API Endpoints Reference]

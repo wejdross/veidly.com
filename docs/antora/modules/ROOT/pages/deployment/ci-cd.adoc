@@ -1,0 +1,513 @@
+= CI/CD Pipeline Guide
+:description: Automated testing and deployment with GitHub Actions
+:keywords: ci/cd, github actions, deployment, automation
+
+This guide explains Veidly's CI/CD pipeline using GitHub Actions for automated testing, building, and deployment.
+
+== Overview
+
+The CI/CD pipeline automatically:
+
+* **Runs tests** on every push and pull request
+* **Builds artifacts** for backend (Go binary) and frontend (static files)
+* **Creates GitHub releases** on git tags matching `v*.*.*`
+* **Deploys to production** with automatic health checks and rollback
+
+== Pipeline Architecture
+
+The workflow consists of 4 jobs:
+
+[source]
+----
+build-backend ──┐
+                ├──> create-release ──> deploy-production
+build-frontend ─┘
+----
+
+1. **build-backend**: Compiles Go application and runs tests
+2. **build-frontend**: Builds React app and runs tests
+3. **create-release**: Creates GitHub release with artifacts (on tags only)
+4. **deploy-production**: Deploys to EC2 with rollback capability
+
+== Workflow File
+
+Location: `.github/workflows/deploy.yml`
+
+=== Triggers
+
+The pipeline runs on:
+
+* **Push** to any branch - builds and tests only
+* **Pull requests** - builds and tests only
+* **Tags** matching `v*.*.*` - builds, tests, creates release, and deploys
+* **Manual dispatch** - allows manual triggering via GitHub UI
+
+[source,yaml]
+----
+on:
+  push:
+    branches: ['**']
+    tags: ['v*.*.*']
+  pull_request:
+    branches: ['**']
+  workflow_dispatch:
+----
+
+== Job Details
+
+=== Build Backend Job
+
+Runs on: Ubuntu latest
+
+Steps:
+
+1. **Checkout code**
+2. **Setup Go 1.21**
+3. **Cache Go modules** for faster builds
+4. **Download dependencies**: `go mod download`
+5. **Run tests**: `go test -v -race -coverprofile=coverage.out ./...`
+6. **Build Linux binary**: `CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build`
+7. **Upload artifact** named `veidly-backend-linux`
+
+Key features:
+
+* CGO enabled for SQLite support
+* Race detector enabled in tests
+* Code coverage report generated
+* Cross-compiled for Linux (deployment target)
+
+=== Build Frontend Job
+
+Runs on: Ubuntu latest
+
+Steps:
+
+1. **Checkout code**
+2. **Setup Node.js 18** with npm caching
+3. **Install dependencies**: `npm ci`
+4. **Run linter**: `npm run lint`
+5. **Run tests**: `npm test`
+6. **Build production bundle**: `npm run build`
+7. **Upload artifact** named `veidly-frontend-dist`
+
+Key features:
+
+* Uses `npm ci` for reproducible builds
+* Runs ESLint for code quality
+* Generates optimized production bundle with Vite
+* Output in `dist/` directory
+
+=== Create Release Job
+
+Runs on: Ubuntu latest
+
+Condition: Only on git tags (e.g., `v1.0.0`)
+
+Dependencies: `build-backend` and `build-frontend` must succeed
+
+Steps:
+
+1. **Download backend artifact**
+2. **Download frontend artifact**
+3. **Create GitHub Release** with:
+   - Release notes from tag message
+   - Backend binary attachment
+   - Frontend bundle (tar.gz) attachment
+   - Automatic changelog generation
+
+Example tag creation:
+
+[source,bash]
+----
+git tag -a v1.0.0 -m "Release v1.0.0
+
+Features:
+- Added privacy controls
+- Implemented join/leave functionality
+- Added ICS calendar export
+
+Bug Fixes:
+- Fixed admin email verification banner
+- Fixed copy button overflow
+"
+
+git push origin v1.0.0
+----
+
+=== Deploy Production Job
+
+Runs on: Ubuntu latest
+
+Condition: Only on git tags
+
+Dependencies: `create-release` must succeed
+
+Steps:
+
+1. **Download artifacts** from previous jobs
+2. **Prepare SSH key** from GitHub secrets
+3. **Create backup** of current deployment on server
+4. **Deploy backend binary** to `/opt/veidly/bin/veidly`
+5. **Deploy frontend files** to `/opt/veidly/frontend/`
+6. **Restart application service**
+7. **Health check** with automatic rollback on failure
+8. **Clean up old backups** (keeps last 5)
+
+Key features:
+
+* **Atomic deployment**: Files staged before service restart
+* **Health checks**: Verifies application responds after deployment
+* **Automatic rollback**: Restores previous version on failure
+* **Backup retention**: Keeps last 5 deployments for quick rollback
+
+== Setup Instructions
+
+=== Step 1: Configure GitHub Secrets
+
+Add the following secrets to your GitHub repository:
+
+Settings → Secrets and variables → Actions → New repository secret
+
+[options="header"]
+|===
+|Secret Name |Description |How to Get
+|`EC2_SSH_KEY` |Private SSH key for EC2 access |`cat ~/.ssh/veidly-production`
+|`EC2_HOST` |Elastic IP of production server |Terraform output or AWS console
+|===
+
+To add secrets:
+
+1. Go to GitHub repository → Settings → Secrets and variables → Actions
+2. Click "New repository secret"
+3. Enter name and value
+4. Click "Add secret"
+
+=== Step 2: Verify Workflow Permissions
+
+Ensure the workflow has permission to create releases:
+
+Settings → Actions → General → Workflow permissions
+
+* ✅ Read and write permissions
+* ✅ Allow GitHub Actions to create and approve pull requests
+
+=== Step 3: Test the Pipeline
+
+**Test builds without deployment:**
+
+[source,bash]
+----
+# Push to any branch
+git checkout -b test-ci
+git commit --allow-empty -m "Test CI pipeline"
+git push origin test-ci
+----
+
+Check the Actions tab in GitHub to see the build progress.
+
+**Test full deployment:**
+
+[source,bash]
+----
+# Create and push a tag
+git checkout main
+git pull
+git tag -a v1.0.0 -m "Release v1.0.0"
+git push origin v1.0.0
+----
+
+This triggers the full pipeline including deployment.
+
+== Monitoring Deployments
+
+=== GitHub Actions UI
+
+Navigate to: Repository → Actions → Latest workflow run
+
+You can see:
+
+* ✅ Build status for each job
+* 📊 Test results and coverage
+* 📦 Artifacts available for download
+* 📝 Deployment logs
+* ⏱️ Execution time for each step
+
+=== Deployment Logs
+
+View deployment logs on the server:
+
+[source,bash]
+----
+# SSH to server
+ssh -i ~/.ssh/veidly-production ubuntu@ELASTIC_IP
+
+# Application logs
+tail -f /opt/veidly/logs/app.log
+
+# Systemd service status
+sudo systemctl status veidly
+
+# Recent service logs
+sudo journalctl -u veidly -n 100 -f
+----
+
+=== CloudWatch Logs
+
+View logs in AWS CloudWatch:
+
+1. Go to AWS Console → CloudWatch → Log groups
+2. Select `/aws/ec2/veidly-production`
+3. View log streams:
+   - `{instance_id}/application` - App logs
+   - `{instance_id}/errors` - Error logs
+   - `{instance_id}/nginx-access` - HTTP access logs
+   - `{instance_id}/nginx-error` - Nginx errors
+
+== Manual Deployment
+
+Sometimes you need to deploy without creating a new tag:
+
+=== Option 1: Workflow Dispatch
+
+1. Go to: Repository → Actions → Deploy Veidly
+2. Click "Run workflow"
+3. Select branch
+4. Click "Run workflow"
+
+This runs the full pipeline but skips release creation.
+
+=== Option 2: Manual SSH Deployment
+
+[source,bash]
+----
+# Build locally
+GOOS=linux GOARCH=amd64 CGO_ENABLED=1 go build -o veidly
+cd frontend && npm run build && cd ..
+
+# Create deployment package
+tar czf deploy.tar.gz veidly frontend/dist
+
+# Copy to server
+scp -i ~/.ssh/veidly-production deploy.tar.gz ubuntu@ELASTIC_IP:/tmp/
+
+# SSH and deploy
+ssh -i ~/.ssh/veidly-production ubuntu@ELASTIC_IP
+cd /tmp
+tar xzf deploy.tar.gz
+
+# Create backup
+sudo cp /opt/veidly/bin/veidly /opt/veidly/bin/veidly.backup.$(date +%Y%m%d_%H%M%S)
+
+# Deploy
+sudo cp veidly /opt/veidly/bin/veidly
+sudo rm -rf /opt/veidly/frontend/*
+sudo cp -r frontend/dist/* /opt/veidly/frontend/
+
+# Restart
+sudo systemctl restart veidly
+sudo systemctl status veidly
+----
+
+== Rollback Procedures
+
+=== Automatic Rollback
+
+The deployment script automatically rolls back if:
+
+* Application binary deployment fails
+* Service restart fails
+* Health check fails (app doesn't respond within 30s)
+
+Rollback process:
+
+1. Stops the application service
+2. Restores binary from last backup
+3. Restarts the service
+4. Exits with error code
+
+=== Manual Rollback
+
+If you need to manually rollback to a previous version:
+
+[source,bash]
+----
+# SSH to server
+ssh -i ~/.ssh/veidly-production ubuntu@ELASTIC_IP
+
+# List available backups
+ls -lh /opt/veidly/backups/
+
+# Choose backup to restore
+BACKUP_DATE="20250115_143022"  # Example timestamp
+
+# Stop service
+sudo systemctl stop veidly
+
+# Restore binary
+sudo cp /opt/veidly/backups/veidly.backup.$BACKUP_DATE \
+        /opt/veidly/bin/veidly
+
+# Restore frontend if needed
+sudo rm -rf /opt/veidly/frontend/*
+sudo tar xzf /opt/veidly/backups/frontend.backup.$BACKUP_DATE.tar.gz \
+     -C /opt/veidly/frontend/
+
+# Restart service
+sudo systemctl start veidly
+sudo systemctl status veidly
+----
+
+=== Rollback via GitHub Release
+
+Redeploy a previous version by creating a new tag pointing to an old commit:
+
+[source,bash]
+----
+# Find the commit hash of the good version
+git log --oneline
+
+# Create new tag pointing to that commit
+git tag -a v1.0.1-rollback -m "Rollback to v1.0.0" <commit-hash>
+git push origin v1.0.1-rollback
+----
+
+== Advanced Configuration
+
+=== Custom Build Flags
+
+Modify `.github/workflows/deploy.yml` to add custom build flags:
+
+[source,yaml]
+----
+- name: Build Backend
+  run: |
+    go build -v \
+      -ldflags="-X main.Version=${{ github.ref_name }} -X main.BuildTime=$(date -u +%Y%m%dT%H%M%S)" \
+      -o veidly
+----
+
+=== Environment-Specific Deployments
+
+To deploy to staging and production:
+
+[source,yaml]
+----
+deploy-staging:
+  if: startsWith(github.ref, 'refs/tags/v') && contains(github.ref, '-rc')
+  # Deploy to staging server
+
+deploy-production:
+  if: startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-rc')
+  # Deploy to production server
+----
+
+Tag examples:
+
+* `v1.0.0-rc1` → Deploys to staging
+* `v1.0.0` → Deploys to production
+
+=== Notification Integration
+
+Add Slack/Discord notifications to the workflow:
+
+[source,yaml]
+----
+- name: Notify Deployment
+  if: always()
+  uses: 8398a7/action-slack@v3
+  with:
+    status: ${{ job.status }}
+    webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+----
+
+== Troubleshooting
+
+=== Build Failures
+
+**Issue**: Backend tests fail
+
+**Solution**: Run tests locally to reproduce:
+[source,bash]
+----
+go test -v -race ./...
+----
+
+**Issue**: Frontend build fails
+
+**Solution**: Check for linting errors:
+[source,bash]
+----
+cd frontend
+npm run lint
+npm run build
+----
+
+=== Deployment Failures
+
+**Issue**: SSH connection fails
+
+**Solution**:
+1. Verify `EC2_SSH_KEY` secret is correct
+2. Verify `EC2_HOST` secret matches Elastic IP
+3. Check security group allows GitHub Actions IPs
+
+**Issue**: Health check times out
+
+**Solution**:
+1. SSH to server and check application status:
+[source,bash]
+----
+sudo systemctl status veidly
+sudo journalctl -u veidly -n 50
+----
+
+2. Check if port 8080 is responding:
+[source,bash]
+----
+curl http://localhost:8080/api/health
+----
+
+**Issue**: Permission denied during deployment
+
+**Solution**: Verify veidly user has write permissions:
+[source,bash]
+----
+ls -la /opt/veidly/
+sudo chown -R veidly:veidly /opt/veidly/
+----
+
+=== Rollback Failures
+
+**Issue**: Backup files not found
+
+**Solution**: Check backup directory and retention policy:
+[source,bash]
+----
+ls -lh /opt/veidly/backups/
+# Backups older than 5 deployments are automatically cleaned
+----
+
+== Best Practices
+
+1. **Tag Naming**: Use semantic versioning (e.g., `v1.2.3`)
+2. **Release Notes**: Include detailed notes in tag messages
+3. **Test First**: Always test on a branch before tagging
+4. **Incremental Changes**: Keep releases small and focused
+5. **Monitor Deployments**: Watch logs during and after deployment
+6. **Backup Before Changes**: Always verify backups exist
+7. **Health Checks**: Test application health before marking deployment complete
+8. **Documentation**: Update changelog and documentation with each release
+
+== Next Steps
+
+* xref:deployment/monitoring.adoc[Set up Monitoring] with CloudWatch dashboards
+* xref:admin/backups.adoc[Configure Backup Strategy] and test restoration
+* xref:deployment/ssl.adoc[Configure SSL Certificates] with auto-renewal
+* xref:admin/troubleshooting.adoc[Review Troubleshooting Guide]
+
+== Additional Resources
+
+* https://docs.github.com/en/actions[GitHub Actions Documentation]
+* https://docs.github.com/en/actions/deployment/deploying-to-your-cloud-provider/deploying-to-amazon-elastic-container-service[GitHub Actions AWS Deployment]
+* xref:development/testing.adoc[Testing Guide]
+* xref:deployment/terraform.adoc[Terraform Deployment Guide]

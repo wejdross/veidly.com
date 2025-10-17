@@ -1,0 +1,698 @@
+= Deployment Guide
+:description: Deploy Veidly to production
+:keywords: deployment, AWS, Docker, production
+
+== Overview
+
+This guide covers deploying Veidly to production environments. The recommended setup uses AWS EC2 with Terraform for infrastructure as code.
+
+== Prerequisites
+
+* AWS Account
+* Terraform installed
+* Domain name (optional but recommended)
+* Mailgun account for email delivery
+
+== Deployment Options
+
+=== Option 1: AWS EC2 with Terraform (Recommended)
+
+==== Step 1: Configure Terraform
+
+Edit `terraform/terraform.tfvars`:
+
+[source,hcl]
+----
+aws_region          = "eu-central-1"
+project_name        = "veidly"
+environment         = "production"
+instance_type       = "t2.micro"  # Free tier eligible
+volume_size         = 20          # GB
+ssh_public_key_path = "~/.ssh/id_rsa.pub"
+allowed_ssh_cidr    = ["YOUR_IP/32"]  # Your IP for SSH access
+----
+
+==== Step 2: Initialize and Apply
+
+[source,bash]
+----
+cd terraform
+terraform init
+terraform plan
+terraform apply
+----
+
+This creates:
+* EC2 instance (t2.micro)
+* Security groups (SSH, HTTP, HTTPS)
+* Elastic IP
+* Budget alerts
+
+==== Step 3: Connect to Instance
+
+[source,bash]
+----
+ssh ubuntu@<elastic-ip>
+----
+
+==== Step 4: Install Dependencies
+
+[source,bash]
+----
+# Update system
+sudo apt update && sudo apt upgrade -y
+
+# Install Go
+cd /tmp
+wget https://go.dev/dl/go1.21.6.linux-amd64.tar.gz
+sudo tar -C /usr/local -xzf go1.21.6.linux-amd64.tar.gz
+echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.bashrc
+source ~/.bashrc
+
+# Install Node.js
+curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+sudo apt-get install -y nodejs
+
+# Install Nginx
+sudo apt install nginx -y
+
+# Install Git
+sudo apt install git -y
+----
+
+==== Step 5: Clone and Build
+
+[source,bash]
+----
+# Clone repository
+cd ~
+git clone https://github.com/yourusername/veidly.git
+cd veidly.com
+
+# Build frontend
+cd frontend
+npm install
+npm run build
+
+# Build backend
+cd ../backend
+go mod download
+go build -o veidly-server
+
+# Create data directory
+sudo mkdir -p /opt/veidly/data
+sudo chown ubuntu:ubuntu /opt/veidly/data
+----
+
+==== Step 6: Configure Environment
+
+Create `/opt/veidly/.env`:
+
+[source,bash]
+----
+# JWT Secret (generate with: openssl rand -base64 32)
+JWT_SECRET=your-super-secret-jwt-key-here
+
+# Admin Credentials
+ADMIN_EMAIL=admin@yourdomain.com
+ADMIN_PASSWORD=secure-admin-password
+
+# Email Service (Mailgun)
+MAILGUN_DOMAIN=mg.yourdomain.com
+MAILGUN_API_KEY=your-mailgun-api-key
+MAILGUN_FROM_EMAIL=noreply@yourdomain.com
+
+# Database
+DATABASE_PATH=/opt/veidly/data/veidly.db
+
+# Server
+PORT=8080
+GIN_MODE=release
+----
+
+==== Step 7: Configure Systemd Service
+
+Create `/etc/systemd/system/veidly.service`:
+
+[source,systemd]
+----
+[Unit]
+Description=Veidly Event Platform
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/veidly.com/backend
+EnvironmentFile=/opt/veidly/.env
+ExecStart=/home/ubuntu/veidly.com/backend/veidly-server
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+----
+
+Enable and start:
+
+[source,bash]
+----
+sudo systemctl daemon-reload
+sudo systemctl enable veidly
+sudo systemctl start veidly
+sudo systemctl status veidly
+----
+
+==== Step 8: Configure Nginx
+
+Create `/etc/nginx/sites-available/veidly`:
+
+[source,nginx]
+----
+# Redirect HTTP to HTTPS
+server {
+    listen 80;
+    server_name yourdomain.com www.yourdomain.com;
+    return 301 https://$server_name$request_uri;
+}
+
+# HTTPS server
+server {
+    listen 443 ssl http2;
+    server_name yourdomain.com www.yourdomain.com;
+
+    # SSL certificates (configure after obtaining from Let's Encrypt)
+    ssl_certificate /etc/letsencrypt/live/yourdomain.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/yourdomain.com/privkey.pem;
+
+    # SSL configuration
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+    ssl_prefer_server_ciphers on;
+
+    # Frontend (static files)
+    root /home/ubuntu/veidly.com/frontend/dist;
+    index index.html;
+
+    # Serve frontend
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # Proxy API requests to backend
+    location /api/ {
+        proxy_pass http://localhost:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+    }
+
+    # Gzip compression
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 10240;
+    gzip_proxied any;
+    gzip_comp_level 6;
+    gzip_types text/plain text/css text/xml text/javascript application/json application/javascript application/xml+rss;
+
+    # Security headers
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "no-referrer-when-downgrade" always;
+    add_header Content-Security-Policy "default-src 'self' http: https: data: blob: 'unsafe-inline'" always;
+}
+----
+
+Enable site:
+
+[source,bash]
+----
+sudo ln -s /etc/nginx/sites-available/veidly /etc/nginx/sites-enabled/
+sudo nginx -t
+sudo systemctl restart nginx
+----
+
+==== Step 9: Setup SSL with Let's Encrypt
+
+[source,bash]
+----
+# Install Certbot
+sudo apt install certbot python3-certbot-nginx -y
+
+# Obtain certificate
+sudo certbot --nginx -d yourdomain.com -d www.yourdomain.com
+
+# Test auto-renewal
+sudo certbot renew --dry-run
+----
+
+==== Step 10: Configure Firewall
+
+[source,bash]
+----
+# Allow SSH, HTTP, HTTPS
+sudo ufw allow 22
+sudo ufw allow 80
+sudo ufw allow 443
+sudo ufw enable
+sudo ufw status
+----
+
+=== Option 2: Docker Deployment
+
+==== Dockerfile (Backend)
+
+Create `backend/Dockerfile`:
+
+[source,dockerfile]
+----
+FROM golang:1.21-alpine AS builder
+
+WORKDIR /app
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=1 GOOS=linux go build -a -installsuffix cgo -o veidly-server .
+
+FROM alpine:latest
+RUN apk --no-cache add ca-certificates sqlite
+WORKDIR /root/
+COPY --from=builder /app/veidly-server .
+EXPOSE 8080
+CMD ["./veidly-server"]
+----
+
+==== Docker Compose
+
+Create `docker-compose.yml`:
+
+[source,yaml]
+----
+version: '3.8'
+
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8080:8080"
+    environment:
+      - JWT_SECRET=${JWT_SECRET}
+      - MAILGUN_DOMAIN=${MAILGUN_DOMAIN}
+      - MAILGUN_API_KEY=${MAILGUN_API_KEY}
+      - MAILGUN_FROM_EMAIL=${MAILGUN_FROM_EMAIL}
+      - ADMIN_EMAIL=${ADMIN_EMAIL}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+      - GIN_MODE=release
+    volumes:
+      - ./data:/root/data
+    restart: unless-stopped
+
+  frontend:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./frontend/dist:/usr/share/nginx/html
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf
+      - ./certs:/etc/nginx/certs
+    depends_on:
+      - backend
+    restart: unless-stopped
+----
+
+Deploy:
+
+[source,bash]
+----
+docker-compose up -d
+----
+
+== Post-Deployment Tasks
+
+=== Database Initialization
+
+First run creates database automatically:
+
+[source,bash]
+----
+sudo journalctl -u veidly -f
+# Watch logs for "Database initialized successfully"
+----
+
+=== Create Admin User
+
+Admin user is created automatically on first run using `ADMIN_EMAIL` and `ADMIN_PASSWORD` from environment.
+
+=== Seed Test Data (Optional)
+
+[source,bash]
+----
+cd ~/veidly.com/backend
+ADMIN_PASSWORD=your-admin-password python3 seed_test_data.py
+----
+
+=== Database Backup
+
+Setup daily backups:
+
+[source,bash]
+----
+# Create backup script
+cat > /opt/veidly/backup.sh <<'EOF'
+#!/bin/bash
+BACKUP_DIR="/opt/veidly/backups"
+DATE=$(date +%Y%m%d_%H%M%S)
+mkdir -p $BACKUP_DIR
+sqlite3 /opt/veidly/data/veidly.db ".backup $BACKUP_DIR/veidly_$DATE.db"
+# Keep only last 30 days
+find $BACKUP_DIR -name "veidly_*.db" -mtime +30 -delete
+EOF
+
+chmod +x /opt/veidly/backup.sh
+
+# Add to crontab (daily at 2 AM)
+(crontab -l 2>/dev/null; echo "0 2 * * * /opt/veidly/backup.sh") | crontab -
+----
+
+== Monitoring
+
+=== Check Service Status
+
+[source,bash]
+----
+sudo systemctl status veidly
+sudo journalctl -u veidly -n 100 -f
+----
+
+=== Monitor Resource Usage
+
+[source,bash]
+----
+# CPU and memory
+htop
+
+# Disk space
+df -h
+
+# Database size
+ls -lh /opt/veidly/data/veidly.db
+----
+
+=== Application Logs
+
+[source,bash]
+----
+# Real-time logs
+sudo journalctl -u veidly -f
+
+# Last 100 lines
+sudo journalctl -u veidly -n 100
+
+# Errors only
+sudo journalctl -u veidly -p err -n 50
+----
+
+=== Nginx Logs
+
+[source,bash]
+----
+# Access logs
+sudo tail -f /var/log/nginx/access.log
+
+# Error logs
+sudo tail -f /var/log/nginx/error.log
+----
+
+== Updates and Maintenance
+
+=== Updating the Application
+
+[source,bash]
+----
+# Navigate to repository
+cd ~/veidly.com
+
+# Pull latest changes
+git pull origin main
+
+# Rebuild frontend
+cd frontend
+npm install
+npm run build
+
+# Rebuild backend
+cd ../backend
+go build -o veidly-server
+
+# Restart service
+sudo systemctl restart veidly
+
+# Check status
+sudo systemctl status veidly
+----
+
+=== Database Migrations
+
+Currently, migrations run automatically on startup. For manual migration:
+
+[source,bash]
+----
+# Backup first!
+cp /opt/veidly/data/veidly.db /opt/veidly/data/veidly.db.backup
+
+# Restart service (runs migrations)
+sudo systemctl restart veidly
+----
+
+=== Zero-Downtime Deployment (Advanced)
+
+For production with high traffic:
+
+. Setup load balancer with 2+ instances
+. Deploy to instance 1, remove from load balancer
+. Test instance 1
+. Add instance 1 back to load balancer
+. Repeat for other instances
+
+== Security Hardening
+
+=== Restrict SSH Access
+
+[source,bash]
+----
+# Edit SSH config
+sudo nano /etc/ssh/sshd_config
+
+# Disable password authentication (use keys only)
+PasswordAuthentication no
+PermitRootLogin no
+
+# Restart SSH
+sudo systemctl restart sshd
+----
+
+=== Setup Fail2Ban
+
+[source,bash]
+----
+# Install
+sudo apt install fail2ban -y
+
+# Configure
+sudo cp /etc/fail2ban/jail.conf /etc/fail2ban/jail.local
+sudo nano /etc/fail2ban/jail.local
+
+# Enable and start
+sudo systemctl enable fail2ban
+sudo systemctl start fail2ban
+----
+
+=== Regular Security Updates
+
+[source,bash]
+----
+# Enable automatic security updates
+sudo apt install unattended-upgrades -y
+sudo dpkg-reconfigure -plow unattended-upgrades
+----
+
+== Performance Optimization
+
+=== Database Optimization
+
+[source,bash]
+----
+# Enable WAL mode for better concurrency
+sqlite3 /opt/veidly/data/veidly.db "PRAGMA journal_mode=WAL;"
+
+# Analyze and optimize
+sqlite3 /opt/veidly/data/veidly.db "ANALYZE; VACUUM;"
+----
+
+=== Nginx Caching
+
+Add to Nginx config:
+
+[source,nginx]
+----
+# Cache static assets
+location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+    expires 1y;
+    add_header Cache-Control "public, immutable";
+}
+----
+
+== Troubleshooting
+
+=== Service Won't Start
+
+[source,bash]
+----
+# Check logs
+sudo journalctl -u veidly -n 100
+
+# Common issues:
+# - Port 8080 already in use: lsof -i :8080
+# - Database locked: rm /opt/veidly/data/veidly.db-shm
+# - Permission issues: sudo chown -R ubuntu:ubuntu /opt/veidly
+----
+
+=== High Memory Usage
+
+[source,bash]
+----
+# Check memory
+free -h
+
+# Restart service
+sudo systemctl restart veidly
+
+# Consider upgrading instance type if consistently high
+----
+
+=== Database Corruption
+
+[source,bash]
+----
+# Restore from backup
+sudo systemctl stop veidly
+cp /opt/veidly/backups/veidly_YYYYMMDD_HHMMSS.db /opt/veidly/data/veidly.db
+sudo systemctl start veidly
+----
+
+=== SSL Certificate Issues
+
+[source,bash]
+----
+# Check certificate status
+sudo certbot certificates
+
+# Renew manually
+sudo certbot renew
+
+# Test configuration
+sudo nginx -t
+----
+
+== Cost Optimization (AWS)
+
+=== Free Tier Usage
+
+* EC2 t2.micro: 750 hours/month (1 instance running 24/7)
+* EBS: 30 GB/month
+* Data transfer: 100 GB/month outbound
+* Budget: Set up billing alerts at $5, $10, $20
+
+=== Reducing Costs
+
+. Use Reserved Instances for long-term (save 30-70%)
+. Enable auto-stop during low-traffic hours
+. Use S3 for database backups (cheaper than EBS snapshots)
+. Optimize images and assets to reduce bandwidth
+
+== Scaling Considerations
+
+=== Vertical Scaling
+
+Upgrade instance type:
+
+[source,bash]
+----
+# Stop instance
+# Change instance type in AWS console
+# Start instance
+----
+
+=== Horizontal Scaling
+
+. Setup Application Load Balancer
+. Deploy multiple EC2 instances
+. Migrate to PostgreSQL (shared database)
+. Add Redis for session storage
+
+=== Database Migration
+
+When ready to scale, migrate from SQLite to PostgreSQL:
+
+. Setup RDS PostgreSQL instance
+. Export SQLite data
+. Import to PostgreSQL
+. Update database connection in code
+. Deploy updated application
+
+== Disaster Recovery
+
+=== Backup Strategy
+
+* **Database**: Daily automated backups (kept 30 days)
+* **Code**: Git repository (GitHub)
+* **Configuration**: Documented in this guide
+* **SSL Certificates**: Auto-renewed via Let's Encrypt
+
+=== Recovery Procedure
+
+. Provision new EC2 instance via Terraform
+. Follow deployment steps 4-8
+. Restore database from latest backup
+. Update DNS to new instance IP
+. Test thoroughly before switching traffic
+
+== Support
+
+For deployment issues:
+
+* Check troubleshooting section above
+* Review application logs
+* Post in GitHub Discussions
+* Open GitHub Issue for bugs
+
+== Checklist
+
+Before going live:
+
+☐ SSL certificate installed and working +
+☐ Firewall configured (SSH, HTTP, HTTPS only) +
+☐ Database backups scheduled +
+☐ Monitoring setup +
+☐ Environment variables configured +
+☐ Admin account created +
+☐ Email delivery tested (Mailgun) +
+☐ Domain DNS configured +
+☐ Security headers configured +
+☐ Budget alerts setup +
+☐ Documentation reviewed +
+☐ All tests passing locally +
+☐ Performance testing completed
+
+== Next Steps
+
+* xref:architecture.adoc[Understand the Architecture]
+* xref:api.adoc[API Reference]
+* xref:contributing.adoc[Contributing Guide]

@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <defs>
+    <linearGradient id="veidlyGradientLight" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#8b9dff;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#9d7dc4;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+
+  <!-- Map pin shape (lighter gradient for dark backgrounds) -->
+  <path d="M 100 20 C 68 20 42 46 42 78 C 42 95 50 110 100 160 C 150 110 158 95 158 78 C 158 46 132 20 100 20 Z"
+        fill="url(#veidlyGradientLight)"
+        stroke="none"/>
+
+  <!-- Two people meeting/connecting inside the pin -->
+  <!-- Left person -->
+  <circle cx="80" cy="75" r="12" fill="white" opacity="1"/>
+  <path d="M 68 95 Q 68 87 80 87 Q 92 87 92 95 L 92 105 Q 92 108 89 108 L 71 108 Q 68 108 68 105 Z"
+        fill="white" opacity="1"/>
+
+  <!-- Right person -->
+  <circle cx="120" cy="75" r="12" fill="white" opacity="1"/>
+  <path d="M 108 95 Q 108 87 120 87 Q 132 87 132 95 L 132 105 Q 132 108 129 108 L 111 108 Q 108 108 108 105 Z"
+        fill="white" opacity="1"/>
+
+  <!-- Connection spark/heart between them -->
+  <path d="M 100 82 L 95 87 L 100 92 L 105 87 Z"
+        fill="white" opacity="1"/>
+
+  <!-- Subtle highlight on top of pin -->
+  <ellipse cx="100" cy="45" rx="25" ry="15" fill="white" opacity="0.2"/>
+</svg>

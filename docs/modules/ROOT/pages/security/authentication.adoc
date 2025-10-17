@@ -1,0 +1,480 @@
+= Authentication & Security
+:description: Complete guide to Veidly's authentication and security features
+:keywords: authentication, security, JWT, passwords, admin
+
+Comprehensive documentation of Veidly's authentication system and security features.
+
+== Authentication Overview
+
+Veidly uses JWT (JSON Web Token) based authentication with secure password hashing.
+
+=== Key Features
+
+* **JWT tokens** for stateless authentication
+* **bcrypt password hashing** with adaptive cost factor
+* **Automatic token expiration** (7 days)
+* **401 response interceptor** for automatic logout
+* **Admin role** management
+* **User blocking** capability
+
+== User Registration
+
+=== Registration Flow
+
+1. User submits email, password, and name
+2. Backend validates input (email format, password strength)
+3. Password is hashed with bcrypt (cost factor 14 in production)
+4. User record created in database
+5. JWT token generated and returned
+6. Frontend stores token in localStorage
+7. User automatically logged in
+
+=== Registration Endpoint
+
+[source,http]
+----
+POST /api/auth/register
+Content-Type: application/json
+
+{
+  "email": "user@example.com",
+  "password": "SecurePassword123",
+  "name": "John Doe"
+}
+----
+
+.Response
+[source,json]
+----
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "user": {
+    "id": 1,
+    "email": "user@example.com",
+    "name": "John Doe",
+    "is_admin": false
+  }
+}
+----
+
+=== Validation Rules
+
+.Email
+* Required field
+* Must be valid email format
+* Must be unique (no duplicates)
+
+.Password
+* Required field
+* Minimum length enforced by frontend
+* Hashed with bcrypt before storage
+
+.Name
+* Required field
+* Used for display purposes
+
+== User Login
+
+=== Login Flow
+
+1. User submits email and password
+2. Backend looks up user by email
+3. Password verified against bcrypt hash
+4. User status checked (not blocked)
+5. JWT token generated with user claims
+6. Token and user data returned
+7. Frontend stores token and sets Authorization header
+
+=== Login Endpoint
+
+[source,http]
+----
+POST /api/auth/login
+Content-Type: application/json
+
+{
+  "email": "user@example.com",
+  "password": "SecurePassword123"
+}
+----
+
+.Response
+[source,json]
+----
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "user": {
+    "id": 1,
+    "email": "user@example.com",
+    "name": "John Doe",
+    "is_admin": false,
+    "bio": null,
+    "phone": null,
+    "threema": null,
+    "languages": null
+  }
+}
+----
+
+== JWT Token Structure
+
+=== Token Claims
+
+[source,json]
+----
+{
+  "user_id": 1,
+  "email": "user@example.com",
+  "is_admin": false,
+  "exp": 1234567890,  // Expiration (7 days from issue)
+  "iat": 1234567890   // Issued at
+}
+----
+
+=== Token Lifecycle
+
+* **Duration:** 7 days from issue
+* **Storage:** localStorage (client-side)
+* **Transmission:** `Authorization: Bearer <token>` header
+* **Expiration:** Automatic logout on 401 response
+
+WARNING: Tokens are stored in localStorage. While convenient, this is vulnerable to XSS attacks. Ensure all user-generated content is properly sanitized.
+
+== Password Security
+
+=== Hashing Algorithm
+
+Veidly uses **bcrypt** for password hashing:
+
+.Cost Factors
+[cols="1,1,2"]
+|===
+|Environment |Cost Factor |Reason
+
+|Production
+|14
+|Maximum security, slower hashing
+
+|Development
+|14
+|Same as production for consistency
+
+|Testing
+|4
+|Fast test execution
+|===
+
+=== Password Best Practices
+
+For users:
+
+* Minimum 8 characters recommended
+* Mix of letters, numbers, symbols
+* Avoid common passwords
+* Don't reuse passwords
+
+For administrators:
+
+* Use generated secure passwords
+* Never use defaults like "admin123"
+* Rotate passwords periodically
+* Use `make generate-secrets` for strong passwords
+
+== Admin User System
+
+=== Admin Creation
+
+Admin user is created automatically on application startup if it doesn't exist.
+
+.Admin Configuration
+[source,bash]
+----
+# .env file
+ADMIN_PASSWORD=your-secure-generated-password
+----
+
+.Default Admin Credentials
+* **Email:** `admin@veidly.com`
+* **Password:** Set via `ADMIN_PASSWORD` environment variable
+
+IMPORTANT: In production, `ADMIN_PASSWORD` must be set, or the application will refuse to start.
+
+=== Admin Privileges
+
+Admin users can:
+
+* **View all users** via admin panel
+* **Block/unblock users** to prevent abuse
+* **View all events** across the platform
+* **Delete any event** if violating policies
+* **Update any event** for moderation
+
+=== Admin Endpoints
+
+[source,http]
+----
+GET    /api/admin/users         # List all users
+PUT    /api/admin/users/:id/block    # Block a user
+PUT    /api/admin/users/:id/unblock  # Unblock a user
+GET    /api/admin/events        # List all events
+DELETE /api/admin/events/:id    # Delete any event
+PUT    /api/admin/events/:id    # Update any event
+----
+
+All admin endpoints require:
+
+1. Valid JWT token
+2. `is_admin: true` in token claims
+
+== Authentication Middleware
+
+=== authMiddleware
+
+Protects endpoints requiring authentication:
+
+[source,go]
+----
+router.GET("/api/profile", authMiddleware(), getOwnProfile)
+router.PUT("/api/profile", authMiddleware(), updateProfile)
+router.POST("/api/events", authMiddleware(), createEvent)
+----
+
+.What it checks:
+1. Authorization header present
+2. Bearer token format valid
+3. JWT signature valid
+4. Token not expired
+5. User not blocked
+
+=== adminMiddleware
+
+Protects endpoints requiring admin privileges:
+
+[source,go]
+----
+router.GET("/api/admin/users", authMiddleware(), adminMiddleware(), adminGetUsers)
+----
+
+.What it checks:
+1. User is authenticated (via authMiddleware)
+2. User has `is_admin: true` in token
+
+== Frontend Authentication
+
+=== AuthContext
+
+React context managing authentication state:
+
+[source,typescript]
+----
+const { user, token, login, register, logout, isAuthenticated, isAdmin } = useAuth()
+----
+
+.Functions
+* `login(email, password)` - Authenticate user
+* `register(email, password, name)` - Create account
+* `logout()` - Clear session
+* `isAuthenticated` - Boolean, true if logged in
+* `isAdmin` - Boolean, true if user is admin
+
+=== Axios Interceptor
+
+Automatic 401 response handling:
+
+[source,typescript]
+----
+axios.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      // Automatically logout user
+      logout()
+    }
+    return Promise.reject(error)
+  }
+)
+----
+
+=== Protected Routes
+
+React Router guards for authenticated pages:
+
+[source,typescript]
+----
+<Route
+  path="/profile"
+  element={
+    <ProtectedRoute>
+      <ProfilePage />
+    </ProtectedRoute>
+  }
+/>
+----
+
+=== localStorage Validation
+
+User data from localStorage is validated on load:
+
+[source,typescript]
+----
+// Validate user object has required fields
+if (parsedUser && typeof parsedUser.id === 'number' && parsedUser.email) {
+  setUser(parsedUser)
+} else {
+  logout()  // Invalid data, clear session
+}
+----
+
+== User Blocking System
+
+=== How Blocking Works
+
+1. Admin marks user as blocked
+2. User's `is_blocked` flag set to 1 in database
+3. On next request, authMiddleware checks block status
+4. Blocked users receive 403 Forbidden response
+5. Frontend automatically logs out blocked users
+
+=== Block/Unblock Endpoints
+
+[source,http]
+----
+# Block user
+PUT /api/admin/users/123/block
+Authorization: Bearer <admin-token>
+
+# Unblock user
+PUT /api/admin/users/123/unblock
+Authorization: Bearer <admin-token>
+----
+
+== Security Best Practices
+
+=== JWT Security
+
+DO:
+
+* ✅ Use strong JWT_SECRET (minimum 32 characters)
+* ✅ Set reasonable expiration (7 days)
+* ✅ Validate token on every request
+* ✅ Check user block status
+* ✅ Regenerate secrets in production
+
+DON'T:
+
+* ❌ Use empty or weak secrets
+* ❌ Store tokens in cookies without httpOnly flag
+* ❌ Share tokens between environments
+* ❌ Use tokens without expiration
+
+=== Password Security
+
+DO:
+
+* ✅ Use bcrypt with high cost factor
+* ✅ Require strong passwords
+* ✅ Never log passwords
+* ✅ Hash before storing
+
+DON'T:
+
+* ❌ Store passwords in plain text
+* ❌ Use weak hashing (MD5, SHA1)
+* ❌ Allow common passwords
+* ❌ Display passwords in responses
+
+=== Admin Security
+
+DO:
+
+* ✅ Generate strong admin passwords
+* ✅ Use environment variables for secrets
+* ✅ Rotate admin passwords regularly
+* ✅ Monitor admin actions
+* ✅ Use admin middleware on sensitive endpoints
+
+DON'T:
+
+* ❌ Use default passwords
+* ❌ Hardcode admin credentials
+* ❌ Share admin accounts
+* ❌ Skip admin checks on endpoints
+
+== Environment Variables
+
+.Required for Authentication
+[cols="1,2,1"]
+|===
+|Variable |Purpose |Required
+
+|`JWT_SECRET`
+|Sign and verify JWT tokens
+|Yes
+
+|`ADMIN_PASSWORD`
+|Initial admin password
+|Yes (production)
+|===
+
+.Generate Secrets
+[source,bash]
+----
+make generate-secrets
+----
+
+This generates:
+
+* Strong 32-character JWT secret
+* Secure random admin password
+
+== Troubleshooting
+
+=== Invalid Token
+
+.**Symptom:** 401 Unauthorized on authenticated requests
+
+**Causes:**
+* Token expired (>7 days old)
+* JWT_SECRET changed
+* Token format invalid
+* User was blocked
+
+**Solution:**
+* Log out and log back in
+* Check JWT_SECRET hasn't changed
+* Verify user is not blocked
+
+=== Can't Login
+
+.**Symptom:** "Invalid email or password" error
+
+**Causes:**
+* Wrong email or password
+* User doesn't exist
+* User is blocked
+* Database issue
+
+**Solution:**
+* Verify credentials
+* Check if user exists in database
+* Check block status: `SELECT is_blocked FROM users WHERE email=?`
+
+=== Admin Access Denied
+
+.**Symptom:** 403 Forbidden on admin endpoints
+
+**Causes:**
+* User is not admin
+* Token missing is_admin claim
+* Not authenticated
+
+**Solution:**
+* Verify user has `is_admin: true` in database
+* Re-login to get fresh token with admin claim
+* Check AuthMiddleware is present
+
+== See Also
+
+* xref:security/vulnerabilities-fixed.adoc[Security Improvements]
+* xref:guides/deployment.adoc[Deployment Guide]
+* xref:architecture/overview.adoc[Architecture Overview]

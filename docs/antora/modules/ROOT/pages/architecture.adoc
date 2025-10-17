@@ -1,0 +1,175 @@
+= Architecture
+
+== System Overview
+
+Veidly follows a modern client-server architecture with clear separation of concerns.
+
+[source]
+----
+┌─────────────┐      HTTPS       ┌──────────────┐
+│   Browser   │ ←──────────────→ │    Nginx     │
+│  (React)    │                  │  (Reverse    │
+└─────────────┘                  │   Proxy)     │
+                                 └──────────────┘
+                                        ↓
+                                 ┌──────────────┐
+                                 │  Go Backend  │
+                                 │    (Gin)     │
+                                 └──────────────┘
+                                        ↓
+                                 ┌──────────────┐
+                                 │    SQLite    │
+                                 │   Database   │
+                                 └──────────────┘
+----
+
+== Backend Architecture
+
+=== Core Components
+
+* *Handlers* (`handlers.go`) - HTTP request handling and routing
+* *Middleware* (`middleware.go`) - Authentication, rate limiting, CORS
+* *Models* (`models.go`) - Data structures
+* *Privacy* (`privacy.go`) - Privacy filtering logic  
+* *Validation* (`validation.go`) - Input validation
+* *Comments* (`comments.go`) - Comment system
+* *Blocking* (`blocking.go`) - User blocking functionality
+
+=== Database Schema
+
+==== Users Table
+* id, email, password (hashed), name, bio
+* phone, threema (contact methods)
+* is_admin, is_blocked, email_verified
+* languages (comma-separated codes)
+
+==== Events Table
+* id, user_id, title, description, category
+* latitude, longitude, start_time, end_time
+* creator_name, max_participants
+* gender_restriction, age_min, age_max
+* smoking_allowed, alcohol_allowed
+* slug (unique URL identifier)
+* *Privacy fields:*
+  - hide_organizer_until_joined
+  - hide_participants_until_joined
+  - require_verified_to_join
+  - require_verified_to_view
+* comments_enabled
+
+==== Supporting Tables
+* `event_participants` - Many-to-many event participation
+* `email_verification_tokens` - Email verification flow
+* `password_reset_tokens` - Password reset flow
+* `user_blocks` - User blocking relationships
+* `event_comments` - Event comment threads
+* `event_reports` - Community moderation
+
+== Frontend Architecture
+
+=== Component Structure
+
+[source]
+----
+src/
+├── components/
+│   ├── EventForm.tsx          - Create/edit events
+│   ├── PublicEventPage.tsx    - Event details page
+│   ├── MapView.tsx             - Interactive map
+│   ├── EventsSidebar.tsx       - Event list
+│   ├── EventComments.tsx       - Comment system
+│   ├── AdminPanel.tsx          - Admin dashboard
+│   ├── ProfilePage.tsx         - User profiles
+│   └── ...
+├── AuthContext.tsx             - Authentication state
+├── api.ts                      - API client
+└── types.ts                    - TypeScript interfaces
+----
+
+=== State Management
+
+* *Authentication:* React Context API (`AuthContext`)
+* *Local State:* React hooks (`useState`, `useEffect`)
+* *API Calls:* Axios with JWT interceptors
+
+=== Routing
+
+* `/` - Landing page
+* `/map` - Map view (main app)
+* `/event/:slug` - Public event page
+* `/profile` - User profile
+* `/profile/:id` - Public profile
+* `/admin` - Admin panel (requires admin role)
+
+== Security Architecture
+
+=== Authentication Flow
+
+1. User registers → Email verification sent
+2. User verifies email → Account activated
+3. User logs in → JWT token issued
+4. Token stored in localStorage
+5. Axios interceptor adds token to all requests
+6. Backend middleware validates token
+
+=== Privacy Layers
+
+1. *Event Level:* hide_organizer_until_joined, hide_participants_until_joined
+2. *User Level:* Blocking prevents interaction
+3. *Verification Level:* Unverified users see limited info
+4. *Participation Level:* Comments only for participants
+
+== API Design
+
+=== RESTful Endpoints
+
+[source]
+----
+Auth:
+  POST   /api/auth/register
+  POST   /api/auth/login
+  GET    /api/auth/me
+  POST   /api/auth/resend-verification
+  POST   /api/auth/forgot-password
+
+Events:
+  GET    /api/events                    - List events
+  POST   /api/events                    - Create event
+  GET    /api/events/:id                - Get event
+  PUT    /api/events/:id                - Update event
+  DELETE /api/events/:id                - Delete event
+  POST   /api/events/:id/join           - Join event
+  DELETE /api/events/:id/leave          - Leave event
+  GET    /api/public/events/:slug       - Public event view
+
+Comments:
+  GET    /api/events/:id/comments       - List comments (participants only)
+  POST   /api/events/:id/comments       - Create comment
+  PUT    /api/comments/:id              - Update comment
+  DELETE /api/comments/:id              - Delete comment
+
+Blocking:
+  POST   /api/users/:id/block           - Block user
+  DELETE /api/users/:id/block           - Unblock user
+  GET    /api/users/blocked             - List blocked users
+----
+
+=== Response Format
+
+[source,json]
+----
+{
+  "id": 1,
+  "title": "Event Title",
+  "is_participant": true,
+  ...
+}
+----
+
+Errors:
+[source,json]
+----
+{
+  "error": "Description of error"
+}
+----

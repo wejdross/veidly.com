@@ -1,0 +1,926 @@
+= Events API
+:description: Events API endpoints for creating, managing, and discovering events
+:keywords: api, events, rest, endpoints
+
+Complete API reference for event-related endpoints.
+
+== Overview
+
+The Events API allows you to:
+
+* List and search events
+* Get event details
+* Create new events
+* Update existing events
+* Delete events
+* Join and leave events
+* View participants
+* Export to ICS format
+
+== Authentication
+
+Most event endpoints support optional authentication:
+
+* **Public access**: Limited information (respects privacy settings)
+* **Authenticated access**: Full information based on user status
+
+See xref:api/overview.adoc#authentication[API Authentication] for details.
+
+== Endpoints
+
+=== List Events
+
+Get a list of events with optional filtering.
+
+[source]
+----
+GET /api/events
+----
+
+==== Query Parameters
+
+[options="header"]
+|===
+|Parameter |Type |Required |Description
+
+|`limit`
+|integer
+|No
+|Results per page (default: 50, max: 100)
+
+|`offset`
+|integer
+|No
+|Number of results to skip (default: 0)
+
+|`search`
+|string
+|No
+|Search in title and description
+
+|`lang`
+|string
+|No
+|Filter by language (en, pl)
+
+|`sw_lat`
+|float
+|No
+|Southwest corner latitude (for map bounds)
+
+|`sw_lng`
+|float
+|No
+|Southwest corner longitude
+
+|`ne_lat`
+|float
+|No
+|Northeast corner latitude
+
+|`ne_lng`
+|float
+|No
+|Northeast corner longitude
+
+|`start_after`
+|string
+|No
+|Filter events starting after this time (ISO 8601)
+
+|`start_before`
+|string
+|No
+|Filter events starting before this time (ISO 8601)
+|===
+
+==== Request Example
+
+[source,bash]
+----
+# Get all events
+curl http://localhost:8080/api/events
+
+# Search for bike events
+curl "http://localhost:8080/api/events?search=bike"
+
+# Events in specific area (Warsaw center)
+curl "http://localhost:8080/api/events?sw_lat=52.20&sw_lng=20.95&ne_lat=52.27&ne_lng=21.05"
+
+# Upcoming events in next 7 days
+curl "http://localhost:8080/api/events?start_after=2025-10-15T00:00:00Z&start_before=2025-10-22T23:59:59Z"
+
+# With authentication
+curl -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/events
+----
+
+==== Response Example
+
+[source,json]
+----
+[
+  {
+    "id": 1,
+    "user_id": 2,
+    "title": "Morning Bike Tour",
+    "description": "Join us for a scenic 25km bike ride...",
+    "slug": "morning-bike-tour-073db950",
+    "latitude": 52.2297,
+    "longitude": 21.0122,
+    "start_time": "2025-10-20T07:00:00Z",
+    "end_time": "2025-10-20T09:00:00Z",
+    "max_participants": 20,
+    "current_participants": 5,
+    "language": "en",
+    "creator_name": "John Doe",
+    "creator_contact": "john@example.com",
+    "custom_fields": [
+      {"name": "Difficulty", "value": "Intermediate"},
+      {"name": "Equipment", "value": "Bike, Helmet"}
+    ],
+    "hide_organizer_until_joined": false,
+    "hide_participants_until_joined": true,
+    "require_verified_to_join": false,
+    "require_verified_to_view": false,
+    "is_participant": false,
+    "created_at": "2025-10-01T10:30:00Z",
+    "updated_at": "2025-10-01T10:30:00Z"
+  }
+]
+----
+
+==== Response Codes
+
+* `200 OK` - Success
+* `400 Bad Request` - Invalid query parameters
+
+---
+
+=== Get Event by ID
+
+Get detailed information about a specific event.
+
+[source]
+----
+GET /api/events/:id
+----
+
+==== Path Parameters
+
+[options="header"]
+|===
+|Parameter |Type |Description
+
+|`id`
+|integer
+|Event ID
+|===
+
+==== Request Example
+
+[source,bash]
+----
+curl http://localhost:8080/api/events/123
+
+# With authentication
+curl -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/events/123
+----
+
+==== Response Example
+
+[source,json]
+----
+{
+  "id": 123,
+  "user_id": 2,
+  "title": "Morning Bike Tour",
+  "description": "Join us for a scenic 25km bike ride through the beautiful countryside...",
+  "slug": "morning-bike-tour-073db950",
+  "latitude": 52.2297,
+  "longitude": 21.0122,
+  "start_time": "2025-10-20T07:00:00Z",
+  "end_time": "2025-10-20T09:00:00Z",
+  "max_participants": 20,
+  "current_participants": 5,
+  "language": "en",
+  "creator_name": "John Doe",
+  "creator_contact": "john@example.com",
+  "custom_fields": [
+    {"name": "Difficulty", "value": "Intermediate"}
+  ],
+  "hide_organizer_until_joined": false,
+  "hide_participants_until_joined": true,
+  "require_verified_to_join": false,
+  "require_verified_to_view": false,
+  "is_participant": true,
+  "created_at": "2025-10-01T10:30:00Z",
+  "updated_at": "2025-10-01T10:30:00Z"
+}
+----
+
+==== Response Codes
+
+* `200 OK` - Success
+* `404 Not Found` - Event not found
+
+---
+
+=== Get Event by Slug
+
+Get event details using the URL-friendly slug.
+
+[source]
+----
+GET /api/public/events/:slug
+----
+
+==== Path Parameters
+
+[options="header"]
+|===
+|Parameter |Type |Description
+
+|`slug`
+|string
+|Event slug (e.g., "morning-bike-tour-073db950")
+|===
+
+==== Request Example
+
+[source,bash]
+----
+curl http://localhost:8080/api/public/events/morning-bike-tour-073db950
+
+# With authentication
+curl -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8080/api/public/events/morning-bike-tour-073db950
+----
+
+==== Response Example
+
+Same as "Get Event by ID" above.
+
+==== Response Codes
+
+* `200 OK` - Success
+* `404 Not Found` - Event not found
+
+---
+
+=== Create Event
+
+Create a new event. Requires authentication.
+
+[source]
+----
+POST /api/events
+Authorization: Bearer <token>
+Content-Type: application/json
+----
+
+==== Request Body
+
+[options="header"]
+|===
+|Field |Type |Required |Description
+
+|`title`
+|string
+|Yes
+|Event title (1-200 characters)
+
+|`description`
+|string
+|No
+|Event description (max 2000 characters)
+
+|`latitude`
+|float
+|Yes
+|Latitude (-90 to 90)
+
+|`longitude`
+|float
+|Yes
+|Longitude (-180 to 180)
+
+|`start_time`
+|string
+|Yes
+|Start time (ISO 8601 format)
+
+|`end_time`
+|string
+|Yes
+|End time (ISO 8601 format, must be after start_time)
+
+|`max_participants`
+|integer
+|No
+|Maximum participants (1-10000, null = unlimited)
+
+|`language`
+|string
+|Yes
+|Language code (en, pl)
+
+|`custom_fields`
+|array
+|No
+|Array of custom field objects (max 10)
+
+|`hide_organizer_until_joined`
+|boolean
+|No
+|Hide organizer until user joins (default: false)
+
+|`hide_participants_until_joined`
+|boolean
+|No
+|Hide participants until user joins (default: true)
+
+|`require_verified_to_join`
+|boolean
+|No
+|Require verified email to join (default: false)
+
+|`require_verified_to_view`
+|boolean
+|No
+|Require verified email to view (default: false)
+|===
+
+==== Custom Fields Format
+
+[source,json]
+----
+{
+  "custom_fields": [
+    {"name": "Difficulty", "value": "Intermediate"},
+    {"name": "Equipment", "value": "Bike, Helmet, Water"}
+  ]
+}
+----
+
+Each custom field has:
+* `name`: max 100 characters
+* `value`: max 500 characters
+
+==== Request Example
+
+[source,bash]
+----
+curl -X POST http://localhost:8080/api/events \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Morning Bike Tour",
+    "description": "Join us for a scenic 25km bike ride",
+    "latitude": 52.2297,
+    "longitude": 21.0122,
+    "start_time": "2025-10-20T07:00:00Z",
+    "end_time": "2025-10-20T09:00:00Z",
+    "max_participants": 20,
+    "language": "en",
+    "custom_fields": [
+      {"name": "Difficulty", "value": "Intermediate"}
+    ],
+    "hide_participants_until_joined": true
+  }'
+----
+
+==== Response Example
+
+[source,json]
+----
+{
+  "id": 123,
+  "slug": "morning-bike-tour-073db950",
+  "title": "Morning Bike Tour",
+  "description": "Join us for a scenic 25km bike ride",
+  "user_id": 2,
+  "creator_name": "John Doe",
+  "creator_contact": "john@example.com",
+  "latitude": 52.2297,
+  "longitude": 21.0122,
+  "start_time": "2025-10-20T07:00:00Z",
+  "end_time": "2025-10-20T09:00:00Z",
+  "max_participants": 20,
+  "current_participants": 0,
+  "language": "en",
+  "custom_fields": [
+    {"name": "Difficulty", "value": "Intermediate"}
+  ],
+  "hide_organizer_until_joined": false,
+  "hide_participants_until_joined": true,
+  "require_verified_to_join": false,
+  "require_verified_to_view": false,
+  "created_at": "2025-10-15T14:30:00Z",
+  "updated_at": "2025-10-15T14:30:00Z"
+}
+----
+
+==== Response Codes
+
+* `201 Created` - Event created successfully
+* `400 Bad Request` - Invalid request data
+* `401 Unauthorized` - Authentication required
+* `403 Forbidden` - Email verification required
+* `422 Unprocessable Entity` - Validation failed
+
+---
+
+=== Update Event
+
+Update an existing event. Only the event creator or admin can update.
+
+[source]
+----
+PUT /api/events/:id
+Authorization: Bearer <token>
+Content-Type: application/json
+----
+
+==== Path Parameters
+
+[options="header"]
+|===
+|Parameter |Type |Description
+
+|`id`
+|integer
+|Event ID
+|===
+
+==== Request Body
+
+Same fields as "Create Event". All fields are optional - only send fields you want to update.
+
+==== Request Example
+
+[source,bash]
+----
+curl -X PUT http://localhost:8080/api/events/123 \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Morning Bike Tour (Updated)",
+    "max_participants": 25
+  }'
+----
+
+==== Response Example
+
+Returns the updated event object (same format as "Get Event").
+
+==== Response Codes
+
+* `200 OK` - Event updated successfully
+* `400 Bad Request` - Invalid request data
+* `401 Unauthorized` - Authentication required
+* `403 Forbidden` - Not authorized to update this event
+* `404 Not Found` - Event not found
+* `422 Unprocessable Entity` - Validation failed
+
+---
+
+=== Delete Event
+
+Delete an event. Only the event creator or admin can delete.
+
+[source]
+----
+DELETE /api/events/:id
+Authorization: Bearer <token>
+----
+
+==== Path Parameters
+
+[options="header"]
+|===
+|Parameter |Type |Description
+
+|`id`
+|integer
+|Event ID
+|===
+
+==== Request Example
+
+[source,bash]
+----
+curl -X DELETE http://localhost:8080/api/events/123 \
+  -H "Authorization: Bearer $TOKEN"
+----
+
+==== Response Example
+
+[source,json]
+----
+{
+  "message": "Event deleted successfully"
+}
+----
+
+==== Response Codes
+
+* `200 OK` - Event deleted successfully
+* `401 Unauthorized` - Authentication required
+* `403 Forbidden` - Not authorized to delete this event
+* `404 Not Found` - Event not found
+
+---
+
+=== Join Event
+
+Join an event as a participant. Requires authentication.
+
+[source]
+----
+POST /api/events/:id/join
+Authorization: Bearer <token>
+----
+
+==== Path Parameters
+
+[options="header"]
+|===
+|Parameter |Type |Description
+
+|`id`
+|integer
+|Event ID
+|===
+
+==== Request Example
+
+[source,bash]
+----
+curl -X POST http://localhost:8080/api/events/123/join \
+  -H "Authorization: Bearer $TOKEN"
+----
+
+==== Response Example
+
+[source,json]
+----
+{
+  "message": "Successfully joined event"
+}
+----
+
+==== Response Codes
+
+* `200 OK` - Successfully joined
+* `400 Bad Request` - Already joined or event full
+* `401 Unauthorized` - Authentication required
+* `403 Forbidden` - Email verification required
+* `404 Not Found` - Event not found
+
+---
+
+=== Leave Event
+
+Leave an event you previously joined. Requires authentication.
+
+[source]
+----
+POST /api/events/:id/leave
+Authorization: Bearer <token>
+----
+
+==== Path Parameters
+
+[options="header"]
+|===
+|Parameter |Type |Description
+
+|`id`
+|integer
+|Event ID
+|===
+
+==== Request Example
+
+[source,bash]
+----
+curl -X POST http://localhost:8080/api/events/123/leave \
+  -H "Authorization: Bearer $TOKEN"
+----
+
+==== Response Example
+
+[source,json]
+----
+{
+  "message": "Successfully left event"
+}
+----
+
+==== Response Codes
+
+* `200 OK` - Successfully left
+* `400 Bad Request` - Not a participant
+* `401 Unauthorized` - Authentication required
+* `404 Not Found` - Event not found
+
+---
+
+=== Get Event Participants
+
+Get list of participants for an event. Respects privacy settings.
+
+[source]
+----
+GET /api/events/:id/participants
+----
+
+==== Path Parameters
+
+[options="header"]
+|===
+|Parameter |Type |Description
+
+|`id`
+|integer
+|Event ID
+|===
+
+==== Request Example
+
+[source,bash]
+----
+curl http://localhost:8080/api/events/123/participants
+
+# With authentication (see more if privacy allows)
+curl -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8080/api/events/123/participants
+----
+
+==== Response Example
+
+[source,json]
+----
+[
+  {
+    "id": 5,
+    "name": "Jane Smith",
+    "joined_at": "2025-10-02T14:30:00Z"
+  },
+  {
+    "id": 8,
+    "name": "Bob Johnson",
+    "joined_at": "2025-10-03T09:15:00Z"
+  }
+]
+----
+
+==== Privacy Filtering
+
+If `hide_participants_until_joined` is enabled:
+
+* **Non-participants**: Empty array `[]`
+* **Participants**: Full participant list
+* **Event creator**: Full participant list
+* **Admins**: Full participant list
+
+==== Response Codes
+
+* `200 OK` - Success (may return empty array due to privacy)
+* `404 Not Found` - Event not found
+
+---
+
+=== Download Event as ICS
+
+Export event to ICS (iCalendar) format for calendar applications.
+
+[source]
+----
+GET /api/public/events/:slug/ics
+----
+
+==== Path Parameters
+
+[options="header"]
+|===
+|Parameter |Type |Description
+
+|`slug`
+|string
+|Event slug
+|===
+
+==== Request Example
+
+[source,bash]
+----
+curl -O http://localhost:8080/api/public/events/morning-bike-tour-073db950/ics
+
+# Or in browser
+open http://localhost:8080/api/public/events/morning-bike-tour-073db950/ics
+----
+
+==== Response
+
+Returns an ICS file for download:
+
+* **Content-Type**: `text/calendar; charset=utf-8`
+* **Content-Disposition**: `attachment; filename="morning-bike-tour-073db950.ics"`
+
+==== Response Codes
+
+* `200 OK` - ICS file downloaded
+* `404 Not Found` - Event not found
+
+See xref:features/calendar-export.adoc[Calendar Export] for details.
+
+---
+
+== Privacy and Permissions
+
+Event responses are filtered based on the viewer's status:
+
+[options="header"]
+|===
+|Field |Public |Authenticated |Verified |Participant |Creator/Admin
+
+|`title`
+|✅
+|✅
+|✅
+|✅
+|✅
+
+|`description`
+|✅
+|✅
+|✅
+|✅
+|✅
+
+|`creator_name`
+|❌ if hidden
+|❌ if hidden
+|❌ if hidden
+|✅
+|✅
+
+|`creator_contact`
+|❌
+|❌
+|❌
+|✅
+|✅
+
+|`participants`
+|❌ if hidden
+|❌ if hidden
+|❌ if hidden
+|✅
+|✅
+
+|`is_participant`
+|❌
+|✅
+|✅
+|✅
+|N/A
+|===
+
+See xref:features/privacy.adoc[Privacy Controls] for detailed documentation.
+
+== Validation Rules
+
+=== Event Fields
+
+* **title**: 1-200 characters, required
+* **description**: 0-2000 characters, optional
+* **latitude**: -90 to 90, required
+* **longitude**: -180 to 180, required
+* **start_time**: ISO 8601 format, must be in the future, required
+* **end_time**: ISO 8601 format, must be after start_time, required
+* **max_participants**: 1-10000 or null, optional
+* **language**: "en" or "pl", required
+
+=== Custom Fields
+
+* **Maximum**: 10 custom fields per event
+* **name**: 1-100 characters
+* **value**: 1-500 characters
+
+== Error Responses
+
+All error responses follow this format:
+
+[source,json]
+----
+{
+  "error": "Error message description"
+}
+----
+
+Common error messages:
+
+* `"Event not found"` - Invalid event ID or slug
+* `"Unauthorized"` - Missing or invalid authentication token
+* `"Email verification required"` - User must verify email first
+* `"Event is full"` - Cannot join, max participants reached
+* `"Already joined"` - User is already a participant
+* `"Not a participant"` - Cannot leave an event you haven't joined
+* `"Start time must be in the future"` - Invalid start_time
+* `"End time must be after start time"` - Invalid time range
+
+== Rate Limiting
+
+Event endpoints are rate limited:
+
+* **General API**: 10 requests/second per IP
+* **Burst**: Up to 20 requests
+
+When rate limited, returns:
+
+[source,json]
+----
+{
+  "error": "Rate limit exceeded"
+}
+----
+
+HTTP Status: `429 Too Many Requests`
+
+## Examples
+
+=== Create and Join Event
+
+[source,bash]
+----
+# 1. Create event
+RESPONSE=$(curl -s -X POST http://localhost:8080/api/events \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Evening Yoga Session",
+    "description": "Relaxing yoga for all levels",
+    "latitude": 52.2297,
+    "longitude": 21.0122,
+    "start_time": "2025-10-20T18:00:00Z",
+    "end_time": "2025-10-20T19:30:00Z",
+    "max_participants": 15,
+    "language": "en"
+  }')
+
+# 2. Extract event ID
+EVENT_ID=$(echo $RESPONSE | jq -r '.id')
+
+# 3. Join the event
+curl -X POST "http://localhost:8080/api/events/$EVENT_ID/join" \
+  -H "Authorization: Bearer $TOKEN"
+
+# 4. Download ICS
+SLUG=$(echo $RESPONSE | jq -r '.slug')
+curl -O "http://localhost:8080/api/public/events/$SLUG/ics"
+----
+
+=== Search and Filter Events
+
+[source,bash]
+----
+# Find all bike events in Warsaw next week
+curl -G http://localhost:8080/api/events \
+  --data-urlencode "search=bike" \
+  --data-urlencode "sw_lat=52.10" \
+  --data-urlencode "sw_lng=20.85" \
+  --data-urlencode "ne_lat=52.35" \
+  --data-urlencode "ne_lng=21.25" \
+  --data-urlencode "start_after=2025-10-15T00:00:00Z" \
+  --data-urlencode "start_before=2025-10-22T23:59:59Z"
+----
+
+=== Update Event Details
+
+[source,bash]
+----
+# Update event with new capacity and privacy settings
+curl -X PUT http://localhost:8080/api/events/123 \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "max_participants": 30,
+    "hide_organizer_until_joined": true,
+    "require_verified_to_join": true
+  }'
+----
+
+## Next Steps
+
+* xref:api/authentication.adoc[Authentication API] - User authentication endpoints
+* xref:api/users.adoc[Users API] - User management endpoints
+* xref:features/privacy.adoc[Privacy Controls] - Understanding privacy filtering
+* xref:features/calendar-export.adoc[Calendar Export] - ICS format details
+
+== Additional Resources
+
+* xref:api/overview.adoc[API Overview] - Authentication, rate limiting, general concepts
+* xref:development/testing.adoc[Testing Guide] - API testing examples
+* https://www.rfc-editor.org/rfc/rfc3339[RFC 3339] - Date/Time format specification

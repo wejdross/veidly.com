@@ -1,0 +1,325 @@
+# Veidly Architecture
+
+## System Overview
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                         Browser                             │
+│  ┌────────────────┐  ┌────────────────┐  ┌──────────────┐  │
+│  │  Landing Page  │  │   Map View     │  │  Event Form  │  │
+│  │  (React)       │  │   (React +     │  │  (React)     │  │
+│  │                │  │    Leaflet)    │  │              │  │
+│  └────────────────┘  └────────────────┘  └──────────────┘  │
+│                            │                                │
+│                            ▼                                │
+│                    ┌───────────────┐                        │
+│                    │   API Client  │                        │
+│                    │   (Axios)     │                        │
+│                    └───────────────┘                        │
+└─────────────────────────┼───────────────────────────────────┘
+                          │ HTTP/JSON
+                          │ :3000 → :8080
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    Go Backend Server                        │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │                  Gin Framework                       │   │
+│  │  ┌──────────────────────────────────────────────┐   │   │
+│  │  │           API Routes                         │   │   │
+│  │  │  • GET    /api/events                        │   │   │
+│  │  │  • GET    /api/events/:id                    │   │   │
+│  │  │  • POST   /api/events                        │   │   │
+│  │  │  • PUT    /api/events/:id                    │   │   │
+│  │  │  • DELETE /api/events/:id                    │   │   │
+│  │  └──────────────────────────────────────────────┘   │   │
+│  │                                                      │   │
+│  │  ┌──────────────────────────────────────────────┐   │   │
+│  │  │           Middleware                         │   │   │
+│  │  │  • CORS Handler                              │   │   │
+│  │  │  • Request Validation                        │   │   │
+│  │  └──────────────────────────────────────────────┘   │   │
+│  └─────────────────────────────────────────────────────┘   │
+│                          │                                  │
+│                          ▼                                  │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │              Database Layer                         │   │
+│  │  • SQL queries                                      │   │
+│  │  • Data validation                                  │   │
+│  │  • Error handling                                   │   │
+│  └─────────────────────────────────────────────────────┘   │
+└─────────────────────────┼───────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    SQLite Database                          │
+│                       veidly.db                             │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │                events table                         │   │
+│  │  • id (PRIMARY KEY)                                 │   │
+│  │  • title, description                               │   │
+│  │  • latitude, longitude                              │   │
+│  │  • start_time, end_time                             │   │
+│  │  • creator_name, creator_contact                    │   │
+│  │  • max_participants                                 │   │
+│  │  • gender_restriction                               │   │
+│  │  • age_min, age_max                                 │   │
+│  │  • smoking_allowed, alcohol_allowed, drugs_allowed  │   │
+│  │  • created_at                                       │   │
+│  └─────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## Data Flow
+
+### Creating an Event
+
+```
+User clicks map
+    ↓
+MapView component captures coordinates
+    ↓
+EventForm opens with pre-filled lat/lng
+    ↓
+User fills form and submits
+    ↓
+api.createEvent() sends POST request
+    ↓
+Go backend validates data
+    ↓
+Data inserted into SQLite
+    ↓
+Backend returns created event
+    ↓
+Frontend refreshes event list
+    ↓
+New marker appears on map
+```
+
+### Viewing Events
+
+```
+User visits map page
+    ↓
+MapView component mounts
+    ↓
+useEffect triggers loadEvents()
+    ↓
+api.getEvents() sends GET request
+    ↓
+Go backend queries SQLite
+    ↓
+Backend returns JSON array
+    ↓
+React sets state with events
+    ↓
+Map renders markers for each event
+    ↓
+User clicks marker to see popup
+```
+
+## Component Architecture
+
+### Frontend Components
+
+```
+App (Router)
+├── LandingPage
+│   ├── Hero Section
+│   ├── Features Grid
+│   ├── About Section
+│   └── CTA Section
+│
+└── MapView
+    ├── Map Navbar
+    ├── Map Container
+    │   ├── TileLayer (OpenStreetMap)
+    │   ├── LocationMarker (click handler)
+    │   └── Markers (events)
+    │       └── Popup (event details)
+    └── EventForm (modal)
+        ├── Event Details
+        ├── Location
+        ├── Contact Info
+        └── Preferences/Restrictions
+```
+
+### Backend Structure
+
+```
+main.go
+├── Type Definitions
+│   └── Event struct
+│
+├── Database Functions
+│   └── initDB()
+│
+├── Route Handlers
+│   ├── getEvents()
+│   ├── getEvent()
+│   ├── createEvent()
+│   ├── updateEvent()
+│   └── deleteEvent()
+│
+└── Main Function
+    ├── Initialize database
+    ├── Create Gin router
+    ├── Configure CORS
+    ├── Register routes
+    └── Start server
+```
+
+## API Contract
+
+### Event Object
+
+```typescript
+{
+  id?: number                    // Auto-generated
+  title: string                  // Required
+  description: string            // Required
+  latitude: number               // Required
+  longitude: number              // Required
+  start_time: string            // Required (ISO 8601)
+  end_time?: string             // Optional
+  creator_name: string          // Required
+  creator_contact: string       // Required
+  max_participants?: number     // Optional
+  gender_restriction: string    // 'any' | 'male' | 'female' | 'non-binary'
+  age_min: number               // Default: 0
+  age_max: number               // Default: 99
+  smoking_allowed: boolean      // Default: false
+  alcohol_allowed: boolean      // Default: false
+  drugs_allowed: boolean        // Default: false
+  created_at?: string           // Auto-generated
+}
+```
+
+## Technology Stack Details
+
+### Frontend Stack
+- **React 18**: UI library
+- **TypeScript**: Type safety
+- **Vite**: Build tool and dev server
+- **React Router**: Client-side routing
+- **Leaflet**: Map rendering
+- **React-Leaflet**: React bindings for Leaflet
+- **Axios**: HTTP client
+
+### Backend Stack
+- **Go 1.21+**: Programming language
+- **Gin**: Web framework
+- **SQLite3**: Database
+- **CORS middleware**: Cross-origin support
+
+## File Responsibilities
+
+### Backend
+- `main.go`: Entire backend server (single file approach)
+- `go.mod`: Dependency management
+- `veidly.db`: SQLite database file (auto-created)
+
+### Frontend
+- `src/main.tsx`: Application entry point
+- `src/App.tsx`: Router configuration
+- `src/api.ts`: API client functions
+- `src/types.ts`: TypeScript type definitions
+- `src/components/LandingPage.tsx`: Landing page component
+- `src/components/MapView.tsx`: Map interface component
+- `src/components/EventForm.tsx`: Event creation form component
+
+## Deployment Architecture (Future)
+
+### Development
+```
+localhost:3000 (Vite Dev Server) → localhost:8080 (Go Server)
+                                         ↓
+                                    veidly.db
+```
+
+### Production (Recommended)
+```
+                    ┌──────────────────────┐
+                    │   CDN / Static Host  │
+                    │   (React Build)      │
+                    │   Vercel/Netlify     │
+                    └──────────┬───────────┘
+                               │
+                               ↓
+                    ┌──────────────────────┐
+                    │   Reverse Proxy      │
+                    │   nginx/Caddy        │
+                    └──────────┬───────────┘
+                               │
+                               ↓
+                    ┌──────────────────────┐
+                    │   Go Backend         │
+                    │   DigitalOcean/AWS   │
+                    └──────────┬───────────┘
+                               │
+                               ↓
+                    ┌──────────────────────┐
+                    │   PostgreSQL         │
+                    │   Managed Service    │
+                    └──────────────────────┘
+```
+
+## Security Layers (For Production)
+
+1. **Transport**: HTTPS/TLS
+2. **CORS**: Restricted origins
+3. **Validation**: Input sanitization
+4. **Authentication**: JWT tokens (future)
+5. **Rate Limiting**: Request throttling (future)
+6. **Database**: Prepared statements (already implemented)
+
+## Performance Considerations
+
+### Current
+- Single Go binary (fast startup)
+- SQLite (file-based, no network overhead)
+- Vite (HMR for fast development)
+- React hooks (optimized re-renders)
+
+### Scalability Path
+1. **Step 1**: Current setup (< 1000 users)
+2. **Step 2**: Add PostgreSQL (< 10,000 users)
+3. **Step 3**: Add Redis caching (< 100,000 users)
+4. **Step 4**: Horizontal scaling with load balancer
+
+## Development Workflow
+
+```
+1. Edit code
+    ↓
+2. Hot reload (Vite for frontend, go run for backend)
+    ↓
+3. Test in browser
+    ↓
+4. Repeat
+```
+
+## Build Process
+
+### Frontend Build
+```
+npm run build
+    ↓
+TypeScript compilation
+    ↓
+Vite bundling
+    ↓
+Optimized static files in dist/
+```
+
+### Backend Build
+```
+go build
+    ↓
+Compilation
+    ↓
+Single binary executable
+```
+
+---
+
+This architecture provides a solid foundation for a real-time event mapping application with room to grow and scale as needed.

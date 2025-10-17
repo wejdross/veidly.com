@@ -1,0 +1,372 @@
+# 🚀 Quick Start Guide - New Features
+
+This guide shows you how to use and test the new features added to Veidly.
+
+---
+
+## Starting the Application
+
+### Backend
+```bash
+# From project root
+go build
+./veidly
+```
+The server will start on `http://localhost:8080`
+
+### Frontend
+```bash
+# From frontend directory
+cd frontend
+npm install  # Only needed first time
+npm run dev  # Development mode
+# OR
+npm run build  # Production build
+```
+Development server: `http://localhost:5173`
+
+---
+
+## New Features Guide
+
+### 1. 🌍 Spoken Languages
+
+**Setting Your Languages:**
+1. Login to your account
+2. Click "My Profile" in the navigation
+3. Click "Edit Profile"
+4. Scroll to "Spoken Languages"
+5. Check all languages you speak
+6. Click "Save Changes"
+
+**Searching by Language:**
+1. Go to the map view
+2. Click "🔍 Search & Filter"
+3. Under "🌍 Language" dropdown, select a language
+4. Click "Apply Filters"
+5. Only events from creators speaking that language will show
+
+**Example:**
+- Select "German" to find German-speaking event organizers
+- Perfect for finding people you can communicate with!
+
+---
+
+### 2. 👥 Event Participation
+
+**Joining an Event:**
+1. Click on any event marker on the map
+2. In the popup, look for the "➕ Join Event" button (green)
+3. Click to join
+4. You'll see a success message
+5. The participant count updates automatically
+
+**Viewing Participants:**
+1. Click on any event marker
+2. Look for "👥 Joined: X/Y" (underlined in blue)
+3. Click the participant count
+4. A modal appears showing all attendees
+5. Click any participant to view their profile
+
+**Leaving an Event:**
+- Currently handled automatically
+- Future: Leave button will appear for events you've joined
+
+**Event Capacity:**
+- Events with max participants will show "✓ Event Full" when capacity is reached
+- The join button becomes disabled
+
+---
+
+### 3. 👤 Viewing User Profiles
+
+**From Event Popups:**
+1. Click any event on the map
+2. Look for "👤 Host: [Name]" (name is underlined in blue)
+3. Click the name
+4. Opens that user's profile in read-only mode
+
+**From Event Sidebar:**
+1. Click "X active events" on the map
+2. In the sidebar, find "Created by [Name]"
+3. Click the name to view profile
+
+**From Participant Modal:**
+1. Open any event's participant list
+2. Click any participant card
+3. Opens their profile
+
+**Profile Features:**
+- See their bio, languages, contact info
+- View when they joined
+- Cannot edit other users' profiles (only your own)
+
+---
+
+### 4. 🔗 Shareable Search URLs
+
+**Creating Shareable Links:**
+1. Go to map view
+2. Apply any filters (language, category, age, etc.)
+3. The URL automatically updates
+4. Copy the URL from your browser
+5. Share it with friends!
+
+**Example URLs:**
+```
+http://localhost:5173/map?language=de&category=sports_fitness
+http://localhost:5173/map?smoking=false&alcohol=false&age_min=25
+http://localhost:5173/map?keyword=coffee&location=Zurich
+```
+
+**Opening Shared Links:**
+1. Click or paste a shared URL
+2. Map loads with all filters pre-applied
+3. Search results appear automatically
+4. No need to set filters manually!
+
+---
+
+## Testing the Features
+
+### Test Language System
+```bash
+# Run language-specific tests
+go test -v -run="TestLanguage"
+```
+
+**Manual Test:**
+1. Create a profile with German language selected
+2. Create an event
+3. Use another account to search by German
+4. Verify your event appears
+
+### Test Event Participation
+```bash
+# Run participation tests
+go test -v -run="TestEventParticipation"
+```
+
+**Manual Test:**
+1. Create an event with max 5 participants
+2. Use 5 different accounts to join
+3. Try joining with a 6th account
+4. Should see "Event Full" message
+
+### Test URL Sharing
+**Manual Test:**
+1. Apply filters: language=English, category=Sports
+2. Copy URL from browser
+3. Open in new private/incognito window
+4. Filters should be pre-applied
+
+---
+
+## Common Scenarios
+
+### Scenario 1: Finding German-Speaking Coffee Meetups
+```
+1. Go to map view
+2. Click "Search & Filter"
+3. Set Language: German
+4. Set Keyword: coffee
+5. Click "Apply Filters"
+6. Copy URL to share with German-speaking friends
+```
+
+### Scenario 2: Creating an Event and Tracking Interest
+```
+1. Create event with max 10 participants
+2. Share the event link
+3. Watch participant count increase
+4. Click participant count to see who joined
+5. View attendee profiles to plan accordingly
+```
+
+### Scenario 3: Networking with Multilingual People
+```
+1. Browse events on map
+2. Click events to see creator languages
+3. Join events with people speaking your languages
+4. Open participant modal to see other attendees' languages
+5. Connect with multilingual community members
+```
+
+---
+
+## API Endpoints (for developers)
+
+### New Endpoints
+
+**Join Event:**
+```bash
+curl -X POST http://localhost:8080/api/events/1/join \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+**Leave Event:**
+```bash
+curl -X DELETE http://localhost:8080/api/events/1/leave \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+**Get Participants:**
+```bash
+curl http://localhost:8080/api/events/1/participants
+```
+
+**Filter by Language:**
+```bash
+curl "http://localhost:8080/api/events?languages=de"
+```
+
+**View User Profile:**
+```bash
+curl http://localhost:8080/api/profile/123
+```
+
+---
+
+## Troubleshooting
+
+### "Event Full" but I see empty slots
+**Solution:** Refresh the page - participant count updates on page load
+
+### Language filter not working
+**Solution:** Ensure the user profile has languages set. Empty profiles won't appear in language searches.
+
+### Participant modal not opening
+**Solution:** Event must have at least one participant. Try joining first.
+
+### URL parameters not restoring
+**Solution:** Make sure you're copying the full URL including `?` and everything after
+
+### Can't view someone's profile
+**Solution:** Profile viewing is public - check if the user ID exists in the URL
+
+---
+
+## Database Queries (for admins)
+
+### Check Event Participants
+```sql
+SELECT u.name, u.email, ep.joined_at
+FROM event_participants ep
+JOIN users u ON ep.user_id = u.id
+WHERE ep.event_id = 1;
+```
+
+### Check User Languages
+```sql
+SELECT name, email, languages
+FROM users
+WHERE languages IS NOT NULL;
+```
+
+### Check Event Capacity
+```sql
+SELECT e.title, e.max_participants,
+       COUNT(ep.user_id) as current_participants
+FROM events e
+LEFT JOIN event_participants ep ON e.id = ep.event_id
+GROUP BY e.id;
+```
+
+---
+
+## Feature Flags / Configuration
+
+### Disable Participation System
+Not recommended, but if needed:
+```go
+// In handlers.go, comment out route:
+// router.POST("/events/:id/join", joinEvent)
+```
+
+### Change Max Languages
+```tsx
+// In ProfilePage.tsx, modify availableLanguages array
+const availableLanguages = [
+  { code: 'de', name: 'German (Deutsch)' },
+  // Add more languages here
+]
+```
+
+### Adjust Event Capacity Limits
+```go
+// In handlers.go joinEvent(), modify capacity check:
+if maxParticipants.Valid && currentCount >= int(maxParticipants.Int64) {
+  // Capacity logic here
+}
+```
+
+---
+
+## Production Deployment
+
+### Environment Variables
+```bash
+# Optional: Change JWT secret
+JWT_SECRET=your-secure-secret-key-here
+```
+
+### Database Migration
+The app auto-migrates on startup. These changes are applied:
+```sql
+ALTER TABLE users ADD COLUMN languages TEXT;
+CREATE TABLE event_participants (...);
+```
+
+### Build Commands
+```bash
+# Backend
+go build -o veidly-server
+
+# Frontend
+cd frontend
+npm run build
+# Serve the dist/ folder
+```
+
+---
+
+## Support
+
+### Test Safety Verification
+```bash
+./verify_test_safety.sh
+```
+Confirms tests don't touch production database.
+
+### Run All Tests
+```bash
+go test -v
+```
+Should see 14/15 tests passing.
+
+### Check Build Status
+```bash
+# Backend
+go build
+
+# Frontend
+cd frontend && npm run build
+```
+Both should complete without errors.
+
+---
+
+## What's Next?
+
+All core features are complete! Optional enhancements:
+
+1. **Antora Documentation** - Nice-to-have documentation system
+2. **Email Notifications** - Alert users when someone joins their event
+3. **Event Chat** - Real-time messaging for participants
+4. **Mobile App** - React Native version
+
+---
+
+**Happy Coding!** 🎉
+
+For detailed technical documentation, see `IMPLEMENTATION_COMPLETE.md`

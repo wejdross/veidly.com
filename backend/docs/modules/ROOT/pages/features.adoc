@@ -1,0 +1,285 @@
+= Veidly Features
+:description: Complete list of all features implemented in Veidly
+:keywords: features, event platform, privacy, authentication
+
+== Overview
+
+Veidly is a privacy-focused, community-driven event platform designed to help real people make real connections. Built with modern web technologies and a strong emphasis on security, privacy, and user experience.
+
+== Core Features
+
+=== User Authentication & Authorization
+
+==== Email-based Authentication
+* Secure user registration with email and password
+* BCrypt password hashing (cost factor: 14 in production, 4 in tests)
+* JWT-based authentication with configurable secret
+* Session management with secure tokens
+
+==== Email Verification System
+* Required email verification before joining events (platform-wide security)
+* Time-limited verification tokens (24-hour expiration)
+* Automated verification email with secure links
+* Admin ability to manually verify users
+* Mailgun integration for reliable email delivery
+
+==== Admin System
+* Role-based access control (admin/regular users)
+* Admin dashboard for user management
+* Ability to block/unblock users
+* Manual email verification capability
+* Platform-wide event management
+
+=== Event Management
+
+==== Event Creation
+* Rich event details with title, description, and category
+* 8 event categories: Social & Drinks, Sports & Fitness, Food & Dining, Arts & Culture, Gaming & Hobbies, Learning & Skills, Adventure & Travel, Parents & Kids
+* Interactive map-based location selection
+* Location search powered by OpenStreetMap Nominatim API
+* Visual location preview with embedded map
+* Date and time range support
+* Maximum participant limits
+* Event slug generation for SEO-friendly URLs
+
+==== Event Preferences
+* Gender restrictions (any/male/female/non-binary)
+* Age range specification (min/max)
+* Smoking preference (allowed/not allowed)
+* Alcohol preference (allowed/not allowed)
+* Multi-language support (participants can specify event languages)
+
+==== Privacy Controls
+* **Automatic Protection**: Contact info hidden from unverified users
+* Hide organizer name and contact until someone joins
+* Hide participant list until someone joins
+* Require verified email to view event details (hides from map)
+* Per-event privacy settings with sensible defaults
+
+==== Event Discovery
+* Interactive map view with real-time event markers
+* List view with filtering capabilities
+* Category-based filtering
+* Location-based search
+* Language-based filtering
+* Gender preference filtering
+* Age range filtering
+* Smoking/alcohol preference filtering
+* Keyword search in titles and descriptions
+
+==== Event Participation
+* One-click join/leave functionality
+* Real-time participant counter
+* Participant list with user profiles
+* Capacity management (auto-reject when full)
+* Email verification required to join (enforced globally)
+* Privacy-aware participant information display
+
+==== Calendar Integration
+* ICS file export for any event
+* Compatible with Google Calendar, Apple Calendar, Outlook
+* Includes all event details, location, and time
+* One-click download from event page
+
+=== User Profiles
+
+==== Profile Management
+* Editable display name
+* Personal bio (markdown support)
+* Multi-language specification
+* Default contact method
+* Profile visibility controls
+
+==== Profile Views
+* Own profile with created/joined events statistics
+* Public user profiles (privacy-respecting)
+* Event history (past and upcoming)
+* Created events count
+* Joined events count
+
+=== Privacy & Security
+
+==== Platform-wide Security
+* All events require email verification to join
+* Unverified users cannot see contact information
+* HTTPS-ready with proper headers
+* SQL injection protection via parameterized queries
+* XSS protection through proper output encoding
+* CORS configuration for frontend-backend security
+* Rate limiting on sensitive endpoints
+
+==== Data Privacy
+* Selective information exposure based on user status
+* Email addresses hidden from non-participants
+* Contact methods protected until joining
+* Participant lists can be hidden
+* Organizer information can be anonymized
+* GDPR-friendly data handling
+
+==== Event Privacy Levels
+1. **Public**: Visible to all, requires email verification to join
+2. **Verified Only to View**: Hidden from unverified users completely
+3. **Hidden Organizer**: Organizer details hidden until joining
+4. **Hidden Participants**: Participant list hidden until joining
+
+=== User Experience
+
+==== Beautiful UI/UX
+* Modern, gradient-based design with purple (#667eea to #764ba2) theme
+* Smooth animations and transitions
+* Responsive design (mobile, tablet, desktop)
+* Interactive map with custom markers
+* Toast notifications for user actions
+* Modal dialogs for forms
+* Loading states and error handling
+* Accessibility considerations
+
+==== Landing Page
+* Eye-catching hero section: "Real People, Real Connections"
+* Feature highlights showcasing safety and privacy
+* Event type showcase with 8 categories
+* Open source transparency
+* Community funding integration (Patronite, BuyCoffee, GitHub Sponsors)
+* Professional footer with links
+
+==== Form Enhancements
+* Real-time validation with helpful error messages
+* Character counters on text inputs
+* Interactive location search with autocomplete
+* Visual map preview instead of lat/long coordinates
+* Multi-language selector with visual chips
+* Default privacy settings for user safety
+* Icons for smoking (🚬) and alcohol (🍺) preferences
+
+=== Technical Features
+
+==== Backend (Go + Gin)
+* RESTful API architecture
+* SQLite database with migrations
+* Structured logging for debugging
+* Graceful error handling
+* Input validation and sanitization
+* Database connection pooling
+* Transaction support for data integrity
+
+==== Frontend (React + TypeScript)
+* Single Page Application (SPA) architecture
+* React Router for navigation
+* Context API for state management
+* Leaflet for interactive maps
+* TypeScript for type safety
+* Vite for fast development and builds
+
+==== Testing
+* 45.9% backend test coverage with comprehensive integration tests
+* Unit tests for critical functions
+* Integration tests for user journeys
+* Test database isolation
+* Bcrypt cost reduction in tests for speed
+
+==== Deployment
+* Docker support
+* AWS infrastructure with Terraform
+* Free tier optimized (t2.micro, gp2 volumes)
+* Budget monitoring and alerts
+* GitHub Actions CI/CD
+* Makefile for common tasks
+
+=== API Endpoints
+
+==== Public Endpoints
+* `GET /api/public/events/:slug` - View public event by slug
+* `GET /api/public/events/:slug/ics` - Download ICS calendar file
+* `GET /api/search-places` - Search for locations
+
+==== Authentication
+* `POST /api/auth/register` - Register new user
+* `POST /api/auth/login` - Login
+* `GET /api/auth/verify-email/:token` - Verify email address
+
+==== Events
+* `GET /api/events` - List all upcoming events (with filters)
+* `GET /api/events/:id` - Get event details
+* `POST /api/events` - Create new event (auth required)
+* `PUT /api/events/:id` - Update event (auth + owner required)
+* `DELETE /api/events/:id` - Delete event (auth + owner required)
+* `POST /api/events/:id/join` - Join event (auth + verified required)
+* `DELETE /api/events/:id/leave` - Leave event (auth required)
+* `GET /api/events/:id/participants` - Get participant list
+
+==== User Profile
+* `GET /api/profile` - Get own profile (auth required)
+* `PUT /api/profile` - Update own profile (auth required)
+* `GET /api/users/:id` - View user profile
+
+==== Admin
+* `GET /api/admin/users` - List all users
+* `PUT /api/admin/users/:id/block` - Block user
+* `PUT /api/admin/users/:id/unblock` - Unblock user
+* `PUT /api/admin/users/:id/verify-email` - Manually verify email
+* `GET /api/admin/events` - List all events (including past)
+* `PUT /api/admin/events/:id` - Update any event
+* `DELETE /api/admin/events/:id` - Delete any event
+
+=== Open Source & Community
+
+==== Licensing
+* Fully open source on GitHub
+* MIT License (permissive)
+* Community contributions welcome
+* Transparent development
+
+==== Funding Model
+* Completely free to use
+* No ads, no tracking, no data selling
+* Community-funded via:
+  - Patronite (monthly support)
+  - BuyCoffee.to (one-time donations)
+  - GitHub Sponsors
+
+==== Contributing
+* Well-documented codebase
+* Comprehensive tests
+* Issue tracking on GitHub
+* Pull request workflow
+* Code of conduct
+
+== Future Roadmap
+
+=== Planned Features
+* Push notifications for event updates
+* Email notifications for joined events
+* Event comments and discussions
+* Photo uploads for events
+* User ratings and reviews
+* Advanced search with map bounds
+* Recurring events support
+* Event categories customization
+* Mobile apps (iOS/Android)
+* Social media integration
+
+=== Infrastructure Improvements
+* Redis caching layer
+* PostgreSQL migration for scaling
+* CDN for static assets
+* WebSocket for real-time updates
+* Elasticsearch for advanced search
+* Monitoring and alerting (Prometheus/Grafana)
+
+== Support
+
+=== Getting Help
+* GitHub Issues: Bug reports and feature requests
+* Documentation: This comprehensive guide
+* Community: Discussion forums (coming soon)
+
+=== Contact
+* Email: Contact via GitHub
+* Project: https://github.com/yourusername/veidly
+* Website: https://veidly.com
+
+== Conclusion
+
+Veidly represents a modern approach to event organization: privacy-first, community-driven, and completely free. Built with love and maintained by volunteers, it's a testament to what's possible when technology serves people, not profits.
+
+**Join us in creating real connections in a world of fake interactions!** 💜

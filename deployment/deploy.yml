@@ -1,0 +1,61 @@
+---
+- name: Deploy Veidly to Hetzner VPS
+  hosts: veidly_servers
+  become: yes
+  vars:
+    app_user: veidly
+    app_dir: /home/{{ app_user }}/app
+    db_dir: /var/lib/veidly
+    backup_dir: /home/{{ app_user }}/backups
+    log_dir: /var/log/veidly
+    release_tag: "{{ release_tag | default('main') }}"
+    domain: "{{ domain | default('veidly.com') }}"
+    
+  pre_tasks:
+    - name: Backup database before deployment
+      block:
+        - name: Create backup directory
+          file:
+            path: "{{ backup_dir }}"
+            state: directory
+            owner: "{{ app_user }}"
+            group: "{{ app_user }}"
+            mode: '0755'
+            
+        - name: Backup database
+          shell: |
+            TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+            BACKUP_FILE="{{ backup_dir }}/veidly_pre_deploy_$TIMESTAMP.db"
+            if [ -f "{{ db_dir }}/veidly.db" ]; then
+              sqlite3 {{ db_dir }}/veidly.db ".backup '$BACKUP_FILE'"
+              gzip $BACKUP_FILE
+              echo "Backup created: $BACKUP_FILE.gz"
+            fi
+          args:
+            executable: /bin/bash
+          become_user: "{{ app_user }}"
+          when: ansible_check_mode == false
+
+  roles:
+    - common
+    - backend
+    - frontend  
+    - nginx
+
+  post_tasks:
+    - name: Verify deployment
+      uri:
+        url: "http://localhost:8080/api/events"
+        status_code: 200
+      retries: 3
+      delay: 5
+
+    - name: Display deployment info
+      debug:
+        msg:
+          - "Deployment completed successfully!"
+          - "Release: {{ release_tag }}"
+          - "Domain: {{ domain }}"
+          - "Backend: http://localhost:8080"
+          - "Frontend: https://{{ domain }}"
+          - "Logs: {{ log_dir }}"

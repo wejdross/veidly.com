@@ -1,0 +1,191 @@
+= Quick Start Guide
+:description: Get Veidly up and running in 5 minutes
+:keywords: quick start, installation, setup
+
+Get Veidly running on your local machine in just a few minutes.
+
+== Prerequisites
+
+Before you begin, ensure you have:
+
+* **Go 1.21+** - https://golang.org/dl/[Download Go]
+* **Node.js 18+** and **npm** - https://nodejs.org/[Download Node.js]
+* **Git** - For cloning the repository
+
+== Step 1: Clone the Repository
+
+[source,bash]
+----
+git clone https://github.com/yourusername/veidly.com.git
+cd veidly.com
+----
+
+== Step 2: Start the Backend
+
+[source,bash]
+----
+# Install Go dependencies
+go mod download
+
+# Initialize the database
+go run . &
+
+# The backend will start on http://localhost:8080
+----
+
+The first time you run the application, it will:
+
+* Create the SQLite database at `/tmp/veidly.db`
+* Run all database migrations
+* Start the API server on port 8080
+
+== Step 3: Start the Frontend
+
+Open a new terminal window:
+
+[source,bash]
+----
+cd frontend
+
+# Install Node.js dependencies
+npm install
+
+# Start the development server
+npm run dev
+----
+
+The frontend will start on http://localhost:3000 and automatically open in your browser.
+
+== Step 4: Create Test Data (Optional)
+
+To populate the database with sample events and users:
+
+[source,bash]
+----
+# From the project root directory
+./seed_test_data.sh
+----
+
+This creates:
+
+* 3 test users (including 1 admin)
+* 10 sample events with various privacy settings
+* Participants for some events
+
+=== Test User Credentials
+
+After seeding, you can log in with:
+
+[options="header"]
+|===
+|Email |Password |Role
+|admin@test.com |test123 |Admin (verified)
+|test1@test.com |test123 |Regular user (verified)
+|test2@test.com |test123 |Regular user (verified)
+|===
+
+== Step 5: Explore the Application
+
+Now you can:
+
+1. **View Events**: Browse events on the interactive map at http://localhost:3000
+2. **Sign In**: Click "Sign In" and use one of the test credentials
+3. **Create an Event**: Click "Create Event" to add your own event
+4. **Join Events**: Click event markers on the map and join events
+5. **Download ICS**: Export events to your calendar
+
+== Environment Variables
+
+For local development, you can create a `.env` file in the project root:
+
+[source,bash]
+----
+# Server Configuration
+PORT=8080
+DB_PATH=/tmp/veidly.db
+
+# JWT Secret (change in production!)
+JWT_SECRET=your-secret-key-change-in-production
+
+# Mailgun Configuration (optional for local dev)
+MAILGUN_DOMAIN=
+MAILGUN_API_KEY=
+MAILGUN_FROM_EMAIL=
+
+# Frontend URL
+FRONTEND_URL=http://localhost:3000
+----
+
+NOTE: Email verification requires Mailgun credentials. Without them, all users will be created as unverified. Admin users can manually verify users from the admin panel.
+
+== Next Steps
+
+Now that you have Veidly running locally:
+
+* Read the xref:development/setup.adoc[Development Setup] guide for detailed configuration
+* Learn about xref:features/privacy.adoc[Privacy Controls] to understand the privacy features
+* Review the xref:api/overview.adoc[API Documentation] to build integrations
+* Check out xref:development/testing.adoc[Testing Guide] to run the test suite
+
+== Troubleshooting
+
+=== Backend Won't Start
+
+**Issue**: `database is locked` error
+
+**Solution**: Stop any existing Veidly processes:
+[source,bash]
+----
+pkill veidly
+# or
+lsof -i :8080
+----
+
+**Issue**: `permission denied` on `/tmp/veidly.db`
+
+**Solution**: Set proper permissions or use a different DB_PATH:
+[source,bash]
+----
+export DB_PATH=./veidly.db
+go run .
+----
+
+=== Frontend Won't Start
+
+**Issue**: `EADDRINUSE` port already in use
+
+**Solution**: Kill the process using port 3000:
+[source,bash]
+----
+lsof -ti:3000 | xargs kill -9
+----
+
+**Issue**: Module not found errors
+
+**Solution**: Clean install dependencies:
+[source,bash]
+----
+cd frontend
+rm -rf node_modules package-lock.json
+npm install
+----
+
+=== Cannot Create Events
+
+**Issue**: "Email verification required" message
+
+**Solution**: Either:
+
+1. Configure Mailgun and verify your email, or
+2. Use the admin account (`admin@test.com`) which bypasses verification, or
+3. Manually update the database:
+[source,bash]
+----
+sqlite3 /tmp/veidly.db "UPDATE users SET email_verified = 1 WHERE email = 'youruser@test.com';"
+----
+
+== Getting Help
+
+* xref:appendix/faq.adoc[Frequently Asked Questions]
+* xref:admin/troubleshooting.adoc[Troubleshooting Guide]
+* GitHub Issues: https://github.com/yourusername/veidly.com/issues

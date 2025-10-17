@@ -1,0 +1,5 @@
+name: veidly
+title: Veidly Documentation  
+version: '1.0'
+nav:
+- modules/ROOT/nav.adoc

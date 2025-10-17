@@ -1,0 +1,318 @@
+= Test Data Guide
+:description: Guide to seeding test data for development
+:keywords: test data, seeding, development, testing
+
+This guide explains how to seed realistic test data for local development and testing.
+
+== Quick Start
+
+[source,bash]
+----
+# 1. Start the backend
+make dev-backend
+
+# 2. In another terminal, run the seeding script
+./seed_test_data.sh
+----
+
+Or use the Makefile:
+
+[source,bash]
+----
+make db-seed
+----
+
+== What Gets Created
+
+=== 5 Diverse Test Users
+
+The script creates 5 users with different personas and interests:
+
+.Test Users
+[cols="1,1,3"]
+|===
+|Name |Email |Profile
+
+|Anna Kowalski
+|anna.kowalski@example.com
+|Polish mom looking for playdates and coffee. Creates family-oriented events.
+
+|Marco Rossi
+|marco.rossi@example.com
+|Italian sports enthusiast. Creates sports and outdoor events.
+
+|Sophie Martin
+|sophie.martin@example.com
+|French foodie and culture lover. Creates food and cultural events.
+
+|Hans Müller
+|hans.mueller@example.com
+|German hiker and nature enthusiast. Creates outdoor adventure events.
+
+|Elena García
+|elena.garcia@example.com
+|Spanish dancer and social butterfly. Creates parties and social events.
+|===
+
+NOTE: All test users have the same password: `password123`
+
+=== 50 Diverse Events
+
+* **10 events per user** across different European cities
+* Events span **2-11 days in the future**
+* Various categories: sports, food, social, outdoor, culture, music, kids
+* Different restrictions: gender, age groups, smoking/alcohol/drugs preferences
+* Participant limits: 4 to 25 people
+
+=== User Interactions
+
+* Each user joins 3-4 random events created by others
+* Tests profile endpoints for all users
+* Tests search and filter functionality
+
+== Sample Events by Category
+
+=== Sports & Activities
+
+* Basketball pickup game in Rome
+* Cycling tour through Tuscany
+* Beach volleyball in Barcelona
+* Hiking in Bavarian Alps
+* Tennis doubles in Munich
+
+=== Food & Drink
+
+* Wine tasting in Bordeaux
+* Tapas tour in Madrid
+* Cooking class in Lyon
+* Coffee and pastries in Paris
+* Beer garden in Munich
+
+=== Social & Entertainment
+
+* Salsa dancing in Barcelona
+* Beach party in Valencia
+* Karaoke night in Madrid
+* Movie night in Milan
+* Board game meetup in Berlin
+
+=== Kids & Family
+
+* Playgroup for toddlers in Warsaw
+* Mom coffee meetup in Krakow
+* Kids art class in Gdansk
+* Family picnic in Wroclaw
+* Children's museum visit in Poznan
+
+=== Culture & Arts
+
+* Museum visit in Florence
+* Art gallery tour in Paris
+* Classical concert in Vienna
+* Theater performance in Hamburg
+* Photography walk in Berlin
+
+== Event Distribution
+
+Events are distributed across major European cities:
+
+.Cities by Country
+[cols="1,3"]
+|===
+|Country |Cities
+
+|Poland
+|Warsaw, Krakow, Gdansk, Poznan, Wroclaw
+
+|Italy
+|Rome, Milan, Florence, Venice, Naples
+
+|France
+|Paris, Lyon, Marseille, Nice, Bordeaux
+
+|Germany
+|Munich, Berlin, Hamburg, Frankfurt, Cologne
+
+|Spain
+|Madrid, Barcelona, Valencia, Seville, Malaga
+|===
+
+== Testing with Seeded Data
+
+=== Login as Different Users
+
+[source,bash]
+----
+# Login as any test user
+Email: anna.kowalski@example.com  # or any other test user
+Password: password123
+----
+
+=== Test Scenarios
+
+.Profile Features
+* View own profile with created/joined/past events
+* Download ICS calendar for joined events
+* Update profile information
+
+.Event Search
+* Search by category (sports, food, social, etc.)
+* Filter by gender restrictions
+* Filter by age requirements
+* Filter by location/map area
+
+.Event Participation
+* Join events created by others
+* Leave events
+* View participants list
+* Check event capacity limits
+
+.Map Features
+* View all events on map
+* Click markers to see event details
+* Filter events visible on map
+* Share event links
+
+== Script Options
+
+The `seed_test_data.sh` script supports these options:
+
+[source,bash]
+----
+# Run with verbose output
+VERBOSE=true ./seed_test_data.sh
+
+# Use different API URL
+API_URL=http://localhost:8080 ./seed_test_data.sh
+
+# Both options
+VERBOSE=true API_URL=http://localhost:3000 ./seed_test_data.sh
+----
+
+== Cleaning Test Data
+
+To remove all test data and start fresh:
+
+[source,bash]
+----
+# Stop the backend
+make stop
+
+# Clean the database
+make db-clean
+
+# Restart and reseed
+make dev-backend
+# In another terminal:
+./seed_test_data.sh
+----
+
+Or use the full workflow:
+
+[source,bash]
+----
+make db-clean && make db-init && make db-seed
+----
+
+== Troubleshooting
+
+=== Script Fails to Connect
+
+.**Problem:** Connection refused
+[source,bash]
+----
+curl: (7) Failed to connect to localhost port 8080
+----
+
+**Solution:** Make sure the backend is running:
+[source,bash]
+----
+make dev-backend
+----
+
+=== Authentication Errors
+
+.**Problem:** Unauthorized errors during seeding
+[source,bash]
+----
+{"error":"Authorization header required"}
+----
+
+**Solution:** The script handles authentication automatically. If you see this:
+
+1. Check that `JWT_SECRET` is set in `.env`
+2. Restart the backend server
+3. Run the script again
+
+=== Events Not Appearing
+
+.**Problem:** Events seeded but not visible on map
+
+**Solution:** Check:
+
+1. Events are in the future (seeding creates 2-11 days ahead)
+2. Map is zoomed to show Europe
+3. Frontend is running: `make dev-frontend`
+4. Browser cache is cleared
+
+=== Database Locked
+
+.**Problem:** Database locked error during seeding
+
+**Solution:**
+[source,bash]
+----
+# Stop backend
+make stop
+
+# Wait a moment
+sleep 2
+
+# Restart backend
+make dev-backend
+
+# Run seeding again
+./seed_test_data.sh
+----
+
+== Advanced Usage
+
+=== Custom Event Data
+
+You can modify the script to create custom events:
+
+1. Edit `seed_test_data.sh`
+2. Find the `create_event` function
+3. Add your custom events following the existing pattern
+4. Run the modified script
+
+=== Integration Testing
+
+The seeded data is perfect for integration testing:
+
+[source,bash]
+----
+# Seed data
+./seed_test_data.sh
+
+# Run frontend tests (uses seeded data via mocked API)
+cd frontend && npm test
+
+# Run backend tests (uses separate test database)
+make test-backend
+----
+
+=== Performance Testing
+
+With 50 events and 5 users:
+
+* Test map rendering with many markers
+* Test search performance across events
+* Test profile page with multiple event sections
+* Test participant lists and joins
+
+== See Also
+
+* xref:guides/quickstart.adoc[Quick Start Guide]
+* xref:guides/makefile.adoc[Makefile Reference]
+* xref:testing/safety.adoc[Testing Safety Guide]

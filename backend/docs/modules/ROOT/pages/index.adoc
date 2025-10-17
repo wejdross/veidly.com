@@ -1,0 +1,75 @@
+= Veidly Documentation
+:description: Privacy-focused, community-driven event platform
+:keywords: veidly, events, privacy, open source
+
+== Welcome to Veidly
+
+*Real People, Real Connections*
+
+Veidly is a modern, privacy-focused event platform designed to help people make authentic connections in the real world. Built as a passion project and powered by community support, it's completely free and open source.
+
+== Why Veidly?
+
+=== For Users
+* **Privacy First**: Your contact information is protected with multiple privacy layers
+* **No Fake Profiles**: Email verification required for all participants
+* **Diverse Events**: 8 categories from social drinks to adventure travel
+* **Free Forever**: No ads, no tracking, no data selling
+* **Community Driven**: Built by people, for people
+
+=== For Organizers
+* **Easy Event Creation**: Interactive map, location search, and visual previews
+* **Powerful Privacy Controls**: Hide your info until people commit by joining
+* **Flexible Settings**: Age, gender, language, and preference filters
+* **Calendar Integration**: ICS export works with all calendar apps
+* **No Hidden Costs**: Completely free to create and manage events
+
+=== For Developers
+* **Open Source**: MIT licensed, available on GitHub
+* **Modern Stack**: Go + Gin backend, React + TypeScript frontend
+* **Well Tested**: 45.9% coverage with comprehensive integration tests
+* **Documented**: Complete API reference and architecture docs
+* **Deployable**: Docker, AWS Terraform, CI/CD ready
+
+== Quick Links
+
+* xref:features.adoc[📋 Complete Features List] - Everything Veidly can do
+* xref:getting-started.adoc[🚀 Getting Started] - Run Veidly locally in 5 minutes
+* xref:architecture.adoc[🏗️ Architecture] - How Veidly works under the hood
+* xref:api.adoc[🔌 API Reference] - Complete REST API documentation
+* xref:deployment.adoc[☁️ Deployment] - Deploy to production
+* xref:contributing.adoc[💝 Contributing] - Help make Veidly better
+
+== Project Status
+
+[cols="1,3"]
+|===
+|Backend Tests |45.9% coverage with integration tests
+|Frontend |React + TypeScript, fully responsive
+|Database |SQLite with migrations
+|Authentication |JWT + BCrypt, email verification
+|Privacy |Multi-layer protection system
+|Deployment |AWS free tier optimized
+|License |MIT (fully open source)
+|===
+
+== Get Involved
+
+Veidly is a community project that needs your support:
+
+* **Use it**: Create events and invite friends
+* **Fund it**: Support via Patronite, BuyCoffee, or GitHub Sponsors
+* **Build it**: Contribute code, report bugs, suggest features
+* **Spread it**: Tell people about Veidly
+
+Together, we can fight social media's fake content with real human connections! 💜
+
+== Support
+
+* **GitHub**: https://github.com/yourusername/veidly
+* **Issues**: Report bugs and request features
+* **Discussions**: Ask questions and share ideas
+
+---
+
+_Made with love, powered by community. No ads, no tracking, no BS._

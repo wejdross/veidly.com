@@ -1,0 +1,1163 @@
+= Email Verification Implementation Plan
+:description: Complete step-by-step plan for implementing email verification and password reset
+:keywords: implementation, development, email verification, password reset
+
+== Overview
+
+This document provides a complete, step-by-step implementation plan for the email verification and password reset system. Follow these steps in order for a successful implementation.
+
+== Prerequisites
+
+✅ *Already Completed*:
+
+* [x] Database models updated (`models.go`)
+* [x] Email service created (`email.go`)
+* [x] Database migrations added (`main.go`)
+* [x] Environment configuration (`.env`, `.env.example`)
+* [x] Email service initialization in `main()`
+* [x] Comprehensive documentation created
+
+== Phase 1: Backend Implementation
+
+=== Step 1.1: Create Email Handler Functions
+
+*File*: Create new file `handlers_auth_email.go`
+
+*Purpose*: Separate email-related authentication handlers
+
+[source,go]
+----
+package main
+
+import (
+	"database/sql"
+	"log"
+	"net/http"
+	"time"
+	"github.com/gin-gonic/gin"
+)
+
+// verifyEmail handles email verification with token
+func verifyEmail(c *gin.Context) {
+	var req struct {
+		Token string `json:"token" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Token is required"})
+		return
+	}
+
+	// Find token in database
+	var tokenData struct {
+		UserID    int
+		ExpiresAt time.Time
+	}
+
+	err := db.QueryRow(`
+		SELECT user_id, expires_at
+		FROM email_verification_tokens
+		WHERE token = ?
+	`, req.Token).Scan(&tokenData.UserID, &tokenData.ExpiresAt)
+
+	if err == sql.ErrNoRows {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid or expired verification token"})
+		return
+	}
+	if err != nil {
+		log.Printf("❌ Error finding token: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Verification failed"})
+		return
+	}
+
+	// Check if token is expired
+	if time.Now().After(tokenData.ExpiresAt) {
+		// Delete expired token
+		db.Exec(`DELETE FROM email_verification_tokens WHERE token = ?`, req.Token)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Verification token has expired"})
+		return
+	}
+
+	// Mark email as verified
+	_, err = db.Exec(`UPDATE users SET email_verified = 1 WHERE id = ?`, tokenData.UserID)
+	if err != nil {
+		log.Printf("❌ Error verifying email: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Verification failed"})
+		return
+	}
+
+	// Delete used token
+	db.Exec(`DELETE FROM email_verification_tokens WHERE token = ?`, req.Token)
+
+	// Get user info for response
+	var user User
+	db.QueryRow(`
+		SELECT id, email, name, email_verified, is_admin, created_at
+		FROM users WHERE id = ?
+	`, tokenData.UserID).Scan(
+		&user.ID, &user.Email, &user.Name, &user.EmailVerified,
+		&user.IsAdmin, &user.CreatedAt,
+	)
+
+	// Send welcome email (don't block if it fails)
+	if emailService != nil {
+		go emailService.SendWelcomeEmail(user.Email, user.Name)
+	}
+
+	log.Printf("✅ Email verified for user: %s", user.Email)
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Email verified successfully",
+		"user":    user,
+	})
+}
+
+// resendVerificationEmail resends verification email
+func resendVerificationEmail(c *gin.Context) {
+	userID := c.GetInt("user_id")
+
+	// Get user info
+	var user User
+	err := db.QueryRow(`
+		SELECT id, email, name, email_verified
+		FROM users WHERE id = ?
+	`, userID).Scan(&user.ID, &user.Email, &user.Name, &user.EmailVerified)
+
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		return
+	}
+
+	// Check if already verified
+	if user.EmailVerified {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Email already verified"})
+		return
+	}
+
+	// Delete old tokens for this user
+	db.Exec(`DELETE FROM email_verification_tokens WHERE user_id = ?`, userID)
+
+	// Generate new token
+	token, err := generateToken()
+	if err != nil {
+		log.Printf("❌ Token generation failed: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
+		return
+	}
+
+	// Store token (24 hour expiration)
+	expiresAt := time.Now().Add(24 * time.Hour)
+	_, err = db.Exec(`
+		INSERT INTO email_verification_tokens (user_id, token, expires_at)
+		VALUES (?, ?, ?)
+	`, userID, token, expiresAt)
+
+	if err != nil {
+		log.Printf("❌ Failed to store token: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to resend verification"})
+		return
+	}
+
+	// Send email
+	if emailService != nil {
+		err = emailService.SendVerificationEmail(user.Email, user.Name, token)
+		if err != nil {
+			log.Printf("❌ Failed to send email: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to send email"})
+			return
+		}
+	}
+
+	log.Printf("✅ Verification email resent to: %s", user.Email)
+	c.JSON(http.StatusOK, gin.H{"message": "Verification email sent"})
+}
+
+// forgotPassword initiates password reset
+func forgotPassword(c *gin.Context) {
+	var req ForgotPasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
+		return
+	}
+
+	// Get user by email
+	var user User
+	err := db.QueryRow(`
+		SELECT id, email, name
+		FROM users WHERE email = ?
+	`, req.Email).Scan(&user.ID, &user.Email, &user.Name)
+
+	// Always return success to prevent email enumeration
+	if err == sql.ErrNoRows {
+		log.Printf("⚠️  Password reset requested for non-existent email: %s", req.Email)
+		c.JSON(http.StatusOK, gin.H{"message": "If the email exists, a reset link has been sent"})
+		return
+	}
+	if err != nil {
+		log.Printf("❌ Database error: %v", err)
+		c.JSON(http.StatusOK, gin.H{"message": "If the email exists, a reset link has been sent"})
+		return
+	}
+
+	// Generate reset token
+	token, err := generateToken()
+	if err != nil {
+		log.Printf("❌ Token generation failed: %v", err)
+		c.JSON(http.StatusOK, gin.H{"message": "If the email exists, a reset link has been sent"})
+		return
+	}
+
+	// Store token (1 hour expiration)
+	expiresAt := time.Now().Add(1 * time.Hour)
+	_, err = db.Exec(`
+		INSERT INTO password_reset_tokens (user_id, token, expires_at)
+		VALUES (?, ?, ?)
+	`, user.ID, token, expiresAt)
+
+	if err != nil {
+		log.Printf("❌ Failed to store token: %v", err)
+		c.JSON(http.StatusOK, gin.H{"message": "If the email exists, a reset link has been sent"})
+		return
+	}
+
+	// Send email
+	if emailService != nil {
+		err = emailService.SendPasswordResetEmail(user.Email, user.Name, token)
+		if err != nil {
+			log.Printf("❌ Failed to send reset email: %v", err)
+		}
+	}
+
+	log.Printf("✅ Password reset email sent to: %s", user.Email)
+	c.JSON(http.StatusOK, gin.H{"message": "If the email exists, a reset link has been sent"})
+}
+
+// resetPassword resets password with token
+func resetPassword(c *gin.Context) {
+	var req ResetPasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
+		return
+	}
+
+	// Find token
+	var tokenData struct {
+		UserID    int
+		ExpiresAt time.Time
+		Used      bool
+	}
+
+	err := db.QueryRow(`
+		SELECT user_id, expires_at, used
+		FROM password_reset_tokens
+		WHERE token = ?
+	`, req.Token).Scan(&tokenData.UserID, &tokenData.ExpiresAt, &tokenData.Used)
+
+	if err == sql.ErrNoRows {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid or expired reset token"})
+		return
+	}
+	if err != nil {
+		log.Printf("❌ Error finding token: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Password reset failed"})
+		return
+	}
+
+	// Check if token is expired
+	if time.Now().After(tokenData.ExpiresAt) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Reset token has expired"})
+		return
+	}
+
+	// Check if token already used
+	if tokenData.Used {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Reset token has already been used"})
+		return
+	}
+
+	// Hash new password
+	hashedPassword, err := hashPassword(req.NewPassword)
+	if err != nil {
+		log.Printf("❌ Password hashing failed: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Password reset failed"})
+		return
+	}
+
+	// Update password
+	_, err = db.Exec(`UPDATE users SET password = ? WHERE id = ?`, hashedPassword, tokenData.UserID)
+	if err != nil {
+		log.Printf("❌ Error updating password: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Password reset failed"})
+		return
+	}
+
+	// Mark token as used
+	db.Exec(`UPDATE password_reset_tokens SET used = 1 WHERE token = ?`, req.Token)
+
+	log.Printf("✅ Password reset successful for user ID: %d", tokenData.UserID)
+	c.JSON(http.StatusOK, gin.H{"message": "Password reset successfully"})
+}
+----
+
+=== Step 1.2: Update Registration Handler
+
+*File*: `handlers.go`
+
+*Changes needed in `register()` function*:
+
+[source,go]
+----
+// After creating user, before generating token:
+
+// Generate verification token
+verificationToken, err := generateToken()
+if err != nil {
+	log.Printf("❌ Token generation failed: %v", err)
+	c.JSON(http.StatusInternalServerError, gin.H{"error": "Registration failed"})
+	return
+}
+
+// Store verification token (24 hour expiration)
+expiresAt := time.Now().Add(24 * time.Hour)
+_, err = db.Exec(`
+	INSERT INTO email_verification_tokens (user_id, token, expires_at)
+	VALUES (?, ?, ?)
+`, id, verificationToken, expiresAt)
+
+if err != nil {
+	log.Printf("❌ Failed to store verification token: %v", err)
+	// Continue anyway - user can request new token
+}
+
+// Send verification email (don't block registration if it fails)
+if emailService != nil {
+	go func() {
+		err := emailService.SendVerificationEmail(user.Email, user.Name, verificationToken)
+		if err != nil {
+			log.Printf("❌ Failed to send verification email: %v", err)
+		}
+	}()
+}
+
+// Update response to include verification status
+user.EmailVerified = false // New users start unverified
+----
+
+=== Step 1.3: Update Login Handler
+
+*File*: `handlers.go`
+
+*Changes needed in `login()` function*:
+
+[source,go]
+----
+// In QueryRow, add email_verified:
+err := db.QueryRow(`
+	SELECT id, email, password, name, bio, phone, threema, languages,
+	       is_admin, is_blocked, email_verified, created_at
+	FROM users WHERE email = ?
+`, req.Email).Scan(
+	&user.ID, &user.Email, &hashedPassword, &user.Name, &bio, &phone,
+	&threema, &languages, &user.IsAdmin, &user.IsBlocked,
+	&user.EmailVerified, &user.CreatedAt
+)
+
+// Note: We don't block login for unverified emails
+// Just return the verification status to frontend
+----
+
+=== Step 1.4: Update Event Creation Handler
+
+*File*: `handlers.go`
+
+*Add at start of `createEvent()` function*:
+
+[source,go]
+----
+func createEvent(c *gin.Context) {
+	userID := c.GetInt("user_id")
+	requestID, _ := c.Get("request_id")
+	log.Printf("[%v] ➕ POST /api/events - Creating new event for user ID: %d", requestID, userID)
+
+	// Check if email is verified
+	var emailVerified bool
+	err := db.QueryRow(`
+		SELECT email_verified FROM users WHERE id = ?
+	`, userID).Scan(&emailVerified)
+
+	if err != nil {
+		log.Printf("❌ Error checking email verification: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to verify user status"})
+		return
+	}
+
+	if !emailVerified {
+		c.JSON(http.StatusForbidden, gin.H{
+			"error": "Please verify your email address before creating events",
+			"code":  "EMAIL_NOT_VERIFIED",
+		})
+		return
+	}
+
+	// Continue with existing event creation logic...
+----
+
+=== Step 1.5: Update All User Queries
+
+*Files to update*: `handlers.go` (multiple functions)
+
+*Functions that query users table*:
+
+* `getCurrentUser()`
+* `getOwnProfile()`
+* `getUserProfile()`
+* `updateProfile()` (after update)
+* `adminGetUsers()`
+
+*Add `email_verified` to SELECT and Scan*:
+
+[source,go]
+----
+// Example for getCurrentUser:
+err := db.QueryRow(`
+	SELECT id, email, name, bio, phone, threema, languages,
+	       is_admin, is_blocked, email_verified, created_at
+	FROM users WHERE id = ?
+`, userID).Scan(
+	&user.ID, &user.Email, &user.Name, &bio, &phone, &threema,
+	&languages, &user.IsAdmin, &user.IsBlocked,
+	&user.EmailVerified, &user.CreatedAt
+)
+----
+
+=== Step 1.6: Add Routes
+
+*File*: `main.go` (in the routes section)
+
+*Add new public routes*:
+
+[source,go]
+----
+// Email verification routes (public)
+router.POST("/api/auth/verify-email", verifyEmail)
+router.POST("/api/auth/forgot-password", forgotPassword)
+router.POST("/api/auth/reset-password", resetPassword)
+
+// Protected routes
+authRoutes := router.Group("/api/auth")
+authRoutes.Use(authMiddleware())
+{
+	authRoutes.POST("/resend-verification", resendVerificationEmail)
+}
+----
+
+=== Step 1.7: Install Mailgun Package
+
+*Command*:
+
+[source,bash]
+----
+go get github.com/mailgun/mailgun-go/v4
+go mod tidy
+----
+
+== Phase 2: Frontend Implementation
+
+=== Step 2.1: Update User Type
+
+*File*: `frontend/src/types.ts`
+
+[source,typescript]
+----
+export interface User {
+  id: number
+  email: string
+  name: string
+  bio?: string
+  phone?: string
+  threema?: string
+  languages?: string
+  is_admin: boolean
+  is_blocked: boolean
+  email_verified: boolean  // Add this
+  created_at: string
+}
+----
+
+=== Step 2.2: Update API Client
+
+*File*: `frontend/src/api.ts`
+
+[source,typescript]
+----
+// Add to api object:
+
+verifyEmail: async (token: string) => {
+  const response = await axios.post(`${API_BASE_URL}/auth/verify-email`, { token })
+  return response.data
+},
+
+resendVerification: async () => {
+  const response = await axios.post(
+    `${API_BASE_URL}/auth/resend-verification`,
+    {},
+    { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
+  )
+  return response.data
+},
+
+forgotPassword: async (email: string) => {
+  const response = await axios.post(`${API_BASE_URL}/auth/forgot-password`, { email })
+  return response.data
+},
+
+resetPassword: async (token: string, newPassword: string) => {
+  const response = await axios.post(`${API_BASE_URL}/auth/reset-password`, {
+    token,
+    new_password: newPassword
+  })
+  return response.data
+}
+----
+
+=== Step 2.3: Create Email Verification Page
+
+*File*: Create `frontend/src/components/VerifyEmailPage.tsx`
+
+[source,typescript]
+----
+import { useEffect, useState } from 'react'
+import { useSearchParams, useNavigate } from 'react-router-dom'
+import { api } from '../api'
+import { useAuth } from '../AuthContext'
+
+export default function VerifyEmailPage() {
+  const [searchParams] = useSearchParams()
+  const navigate = useNavigate()
+  const { setUser } = useAuth()
+  const [status, setStatus] = useState<'verifying' | 'success' | 'error'>('verifying')
+  const [message, setMessage] = useState('')
+
+  useEffect(() => {
+    const token = searchParams.get('token')
+    if (!token) {
+      setStatus('error')
+      setMessage('Invalid verification link')
+      return
+    }
+
+    const verify = async () => {
+      try {
+        const response = await api.verifyEmail(token)
+        setStatus('success')
+        setMessage('Email verified successfully!')
+
+        // Update user in context if logged in
+        if (response.user) {
+          setUser(response.user)
+        }
+
+        // Redirect after 3 seconds
+        setTimeout(() => navigate('/'), 3000)
+      } catch (err: any) {
+        setStatus('error')
+        setMessage(err.response?.data?.error || 'Verification failed')
+      }
+    }
+
+    verify()
+  }, [searchParams, navigate, setUser])
+
+  return (
+    <div className="verify-email-page">
+      {status === 'verifying' && (
+        <div className="verification-status">
+          <div className="spinner"></div>
+          <h2>Verifying your email...</h2>
+        </div>
+      )}
+
+      {status === 'success' && (
+        <div className="verification-status success">
+          <div className="success-icon">✓</div>
+          <h2>Email Verified!</h2>
+          <p>{message}</p>
+          <p>Redirecting to homepage...</p>
+        </div>
+      )}
+
+      {status === 'error' && (
+        <div className="verification-status error">
+          <div className="error-icon">✕</div>
+          <h2>Verification Failed</h2>
+          <p>{message}</p>
+          <button onClick={() => navigate('/')}>Go to Homepage</button>
+        </div>
+      )}
+    </div>
+  )
+}
+----
+
+=== Step 2.4: Create Forgot Password Page
+
+*File*: Create `frontend/src/components/ForgotPasswordPage.tsx`
+
+[source,typescript]
+----
+import { useState } from 'react'
+import { api } from '../api'
+
+export default function ForgotPasswordPage() {
+  const [email, setEmail] = useState('')
+  const [submitted, setSubmitted] = useState(false)
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+    setLoading(true)
+
+    try {
+      await api.forgotPassword(email)
+      setSubmitted(true)
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Failed to send reset email')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (submitted) {
+    return (
+      <div className="forgot-password-page">
+        <div className="success-message">
+          <h2>Check your email</h2>
+          <p>If an account exists for {email}, we've sent a password reset link.</p>
+          <p>The link will expire in 1 hour.</p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="forgot-password-page">
+      <h2>Reset Password</h2>
+      <p>Enter your email address and we'll send you a link to reset your password.</p>
+
+      <form onSubmit={handleSubmit}>
+        {error && <div className="error-message">{error}</div>}
+
+        <div className="form-group">
+          <label htmlFor="email">Email Address</label>
+          <input
+            type="email"
+            id="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            placeholder="your@email.com"
+          />
+        </div>
+
+        <button type="submit" disabled={loading}>
+          {loading ? 'Sending...' : 'Send Reset Link'}
+        </button>
+      </form>
+    </div>
+  )
+}
+----
+
+=== Step 2.5: Create Reset Password Page
+
+*File*: Create `frontend/src/components/ResetPasswordPage.tsx`
+
+[source,typescript]
+----
+import { useState } from 'react'
+import { useSearchParams, useNavigate } from 'react-router-dom'
+import { api } from '../api'
+
+export default function ResetPasswordPage() {
+  const [searchParams] = useSearchParams()
+  const navigate = useNavigate()
+  const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [success, setSuccess] = useState(false)
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+
+    if (password !== confirmPassword) {
+      setError('Passwords do not match')
+      return
+    }
+
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters')
+      return
+    }
+
+    const token = searchParams.get('token')
+    if (!token) {
+      setError('Invalid reset link')
+      return
+    }
+
+    setLoading(true)
+    try {
+      await api.resetPassword(token, password)
+      setSuccess(true)
+      setTimeout(() => navigate('/'), 3000)
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Password reset failed')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (success) {
+    return (
+      <div className="reset-password-page">
+        <div className="success-message">
+          <h2>Password Reset Successful!</h2>
+          <p>You can now log in with your new password.</p>
+          <p>Redirecting to homepage...</p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="reset-password-page">
+      <h2>Create New Password</h2>
+
+      <form onSubmit={handleSubmit}>
+        {error && <div className="error-message">{error}</div>}
+
+        <div className="form-group">
+          <label htmlFor="password">New Password</label>
+          <input
+            type="password"
+            id="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            minLength={8}
+            placeholder="At least 8 characters"
+          />
+        </div>
+
+        <div className="form-group">
+          <label htmlFor="confirmPassword">Confirm Password</label>
+          <input
+            type="password"
+            id="confirmPassword"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            required
+            placeholder="Re-enter password"
+          />
+        </div>
+
+        <button type="submit" disabled={loading}>
+          {loading ? 'Resetting...' : 'Reset Password'}
+        </button>
+      </form>
+    </div>
+  )
+}
+----
+
+=== Step 2.6: Add Email Verification Banner
+
+*File*: Create `frontend/src/components/EmailVerificationBanner.tsx`
+
+[source,typescript]
+----
+import { useState } from 'react'
+import { api } from '../api'
+import { useAuth } from '../AuthContext'
+import './EmailVerificationBanner.css'
+
+export default function EmailVerificationBanner() {
+  const { user } = useAuth()
+  const [loading, setLoading] = useState(false)
+  const [message, setMessage] = useState('')
+
+  if (!user || user.email_verified) {
+    return null
+  }
+
+  const handleResend = async () => {
+    setLoading(true)
+    setMessage('')
+    try {
+      await api.resendVerification()
+      setMessage('Verification email sent! Check your inbox.')
+    } catch (err: any) {
+      setMessage(err.response?.data?.error || 'Failed to send email')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="email-verification-banner">
+      <div className="banner-content">
+        <span className="banner-icon">⚠️</span>
+        <div className="banner-text">
+          <strong>Please verify your email address</strong>
+          <p>You won't be able to create events until your email is verified.</p>
+        </div>
+        <button
+          className="resend-button"
+          onClick={handleResend}
+          disabled={loading}
+        >
+          {loading ? 'Sending...' : 'Resend Email'}
+        </button>
+      </div>
+      {message && <div className="banner-message">{message}</div>}
+    </div>
+  )
+}
+----
+
+=== Step 2.7: Update Routes
+
+*File*: `frontend/src/App.tsx`
+
+[source,typescript]
+----
+import VerifyEmailPage from './components/VerifyEmailPage'
+import ForgotPasswordPage from './components/ForgotPasswordPage'
+import ResetPasswordPage from './components/ResetPasswordPage'
+
+// Add routes:
+<Route path="/verify-email" element={<VerifyEmailPage />} />
+<Route path="/forgot-password" element={<ForgotPasswordPage />} />
+<Route path="/reset-password" element={<ResetPasswordPage />} />
+----
+
+=== Step 2.8: Update AuthModal
+
+*File*: `frontend/src/components/AuthModal.tsx`
+
+*Add "Forgot Password" link to login form*:
+
+[source,typescript]
+----
+// After password input in login form:
+<div className="forgot-password-link">
+  <a href="/forgot-password">Forgot your password?</a>
+</div>
+----
+
+=== Step 2.9: Show Verification Banner
+
+*File*: `frontend/src/components/MapView.tsx` (or main layout)
+
+[source,typescript]
+----
+import EmailVerificationBanner from './EmailVerificationBanner'
+
+// Add at top of map view:
+<EmailVerificationBanner />
+<MapContainer ...>
+----
+
+=== Step 2.10: Handle Event Creation Error
+
+*File*: `frontend/src/components/EventForm.tsx`
+
+*Update error handling in handleSubmit*:
+
+[source,typescript]
+----
+catch (err: any) {
+  const error = err.response?.data
+
+  if (error?.code === 'EMAIL_NOT_VERIFIED') {
+    setError('Please verify your email address before creating events. Check your inbox for the verification link.')
+  } else {
+    setError(error?.error || `Failed to ${isEditMode ? 'update' : 'create'} event`)
+  }
+}
+----
+
+== Phase 3: Testing
+
+=== Step 3.1: Update Backend Tests
+
+*File*: `handlers_test.go`
+
+*Add to existing test user creation*:
+
+[source,go]
+----
+// In test database setup, auto-verify test users:
+db.Exec(`UPDATE users SET email_verified = 1 WHERE id = ?`, testUserID)
+----
+
+*Add new test functions*:
+
+[source,go]
+----
+func TestEmailVerification(t *testing.T) {
+	// Test verify with valid token
+	// Test verify with invalid token
+	// Test verify with expired token
+}
+
+func TestResendVerification(t *testing.T) {
+	// Test resend for unverified user
+	// Test resend for already verified user
+}
+
+func TestPasswordReset(t *testing.T) {
+	// Test forgot password flow
+	// Test reset with valid token
+	// Test reset with expired token
+	// Test reset with used token
+}
+
+func TestEventCreationRequiresVerification(t *testing.T) {
+	// Test creating event with unverified user
+	// Test creating event with verified user
+}
+----
+
+=== Step 3.2: Update Frontend Tests
+
+*Files*: All `*.test.tsx` files
+
+*Update mock user data*:
+
+[source,typescript]
+----
+const mockUser = {
+  id: 1,
+  email: 'test@example.com',
+  name: 'Test User',
+  is_admin: false,
+  is_blocked: false,
+  email_verified: true,  // Add this
+  created_at: '2025-01-01T00:00:00Z'
+}
+----
+
+*Add new test files*:
+
+* `VerifyEmailPage.test.tsx`
+* `ForgotPasswordPage.test.tsx`
+* `ResetPasswordPage.test.tsx`
+* `EmailVerificationBanner.test.tsx`
+
+== Phase 4: Documentation Updates
+
+=== Step 4.1: Update Navigation
+
+*File*: `docs/modules/ROOT/nav.adoc`
+
+[source,asciidoc]
+----
+.Features
+* xref:features/email-verification.adoc[Email Verification]
+
+.Development
+* xref:development/email-verification-implementation-plan.adoc[Email Verification Implementation]
+----
+
+=== Step 4.2: Update README
+
+*File*: `README.md`
+
+*Add to features section*:
+
+[source,markdown]
+----
+- Email verification with Mailgun
+- Password reset functionality
+- Email-verified requirement for event creation
+----
+
+*Add to setup section*:
+
+[source,markdown]
+----
+4. Configure Mailgun (optional, for email features):
+   - Sign up at https://www.mailgun.com
+   - Add credentials to `.env`
+   - See [Email Verification Guide](docs/features/email-verification.adoc)
+----
+
+== Phase 5: Deployment Preparation
+
+=== Step 5.1: Update Deployment Checklist
+
+*File*: `docs/modules/ROOT/pages/guides/deployment.adoc`
+
+*Add to pre-deployment checklist*:
+
+[source,asciidoc]
+----
+=== Email Configuration
+
+[ ] Mailgun account created and verified
+[ ] Production domain verified in Mailgun
+[ ] API key securely stored
+[ ] BASE_URL set to production frontend URL
+[ ] Test email sending in staging environment
+[ ] Set up email monitoring and alerts
+----
+
+=== Step 5.2: Production Environment Variables
+
+*Document required production values*:
+
+[source,bash]
+----
+# Production .env additions
+MAILGUN_DOMAIN=mg.yourdomain.com
+MAILGUN_API_KEY=key-xxxxxxxxxxxxxxxxxxxxx
+MAILGUN_FROM_EMAIL=noreply@yourdomain.com
+BASE_URL=https://yourdomain.com
+----
+
+== Testing Checklist
+
+=== Backend Tests
+
+- [ ] Email verification with valid token
+- [ ] Email verification with invalid token
+- [ ] Email verification with expired token
+- [ ] Resend verification for unverified user
+- [ ] Resend verification for verified user
+- [ ] Forgot password flow
+- [ ] Reset password with valid token
+- [ ] Reset password with expired token
+- [ ] Reset password with used token
+- [ ] Event creation blocked for unverified users
+- [ ] Event creation allowed for verified users
+- [ ] All user queries return email_verified field
+
+=== Frontend Tests
+
+- [ ] Verify email page with valid token
+- [ ] Verify email page with invalid token
+- [ ] Forgot password form submission
+- [ ] Reset password form validation
+- [ ] Reset password with valid token
+- [ ] Email verification banner displays
+- [ ] Resend verification button works
+- [ ] Event creation shows verification error
+- [ ] Mock user includes email_verified field
+
+=== Integration Tests
+
+- [ ] Full registration → verification → login flow
+- [ ] Full forgot → reset password flow
+- [ ] Resend verification email
+- [ ] Create event without verification (blocked)
+- [ ] Create event after verification (allowed)
+- [ ] All emails send correctly in staging
+- [ ] Email links work end-to-end
+
+== Rollout Strategy
+
+=== Phase 1: Backend Only (Week 1)
+
+. Deploy backend changes
+. Run database migrations
+. Test with direct API calls
+. Monitor logs for errors
+
+=== Phase 2: Frontend (Week 2)
+
+. Deploy frontend changes
+. Test user flows
+. Monitor error rates
+. Gather user feedback
+
+=== Phase 3: Enforcement (Week 3)
+
+. Enable email verification requirement for event creation
+. Send announcement to users
+. Monitor support requests
+. Adjust messaging as needed
+
+== Support & Maintenance
+
+=== Common User Issues
+
+**"I didn't receive the verification email"**
+
+. Check spam folder
+. Verify email address is correct
+. Use "Resend verification" button
+. Check Mailgun logs for delivery status
+
+**"My verification link expired"**
+
+. Use "Resend verification" button
+. New link valid for 24 hours
+. Contact support if issues persist
+
+**"I can't create events"**
+
+. Check email verification status in profile
+. Look for verification banner
+. Click "Resend verification" if needed
+. Verify email and try again
+
+=== Monitoring
+
+**Key Metrics**:
+
+* Verification email delivery rate
+* Verification completion rate
+* Password reset request rate
+* Password reset completion rate
+* Event creation attempt failures due to verification
+
+**Alerts**:
+
+* Email delivery failures > 5%
+* Verification rate < 50% after 24 hours
+* Password reset failures > 10%
+
+== Next Steps
+
+After completing this implementation:
+
+. **Test thoroughly** in development
+. **Deploy to staging** environment
+. **Test again** with real email addresses
+. **Document** any edge cases found
+. **Train** support team on new features
+. **Announce** to users with migration guide
+. **Monitor** closely for first week
+. **Iterate** based on feedback
+
+== Summary
+
+This implementation plan provides:
+
+* Complete backend handlers for email verification and password reset
+* Full frontend UI for all flows
+* Comprehensive testing strategy
+* Deployment and monitoring guidelines
+* Support documentation
+
+Follow each phase in order, testing thoroughly at each step. The modular approach allows you to deploy incrementally and roll back if needed.
+
+== References
+
+* xref:features/email-verification.adoc[Email Verification Documentation]
+* xref:security/authentication.adoc[Authentication System]
+* link:https://documentation.mailgun.com/[Mailgun Documentation]

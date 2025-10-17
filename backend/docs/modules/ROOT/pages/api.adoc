@@ -1,0 +1,769 @@
+= API Reference
+:description: Complete API documentation for Veidly backend
+:keywords: API, REST, endpoints, authentication
+
+== Base URL
+
+Development: `http://localhost:8080/api` +
+Production: `https://veidly.com/api`
+
+== Authentication
+
+Most endpoints require authentication via JWT token.
+
+=== Obtaining a Token
+
+Login or register to receive a JWT token:
+
+[source,bash]
+----
+POST /api/auth/login
+{
+  "email": "user@example.com",
+  "password": "your-password"
+}
+
+Response:
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "user": { ... }
+}
+----
+
+=== Using the Token
+
+Include the token in the Authorization header:
+
+[source,bash]
+----
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+----
+
+== Authentication Endpoints
+
+=== Register
+
+Create a new user account.
+
+`POST /api/auth/register`
+
+**Request Body:**
+[source,json]
+----
+{
+  "email": "user@example.com",
+  "password": "securepassword123",
+  "name": "John Doe"
+}
+----
+
+**Response:** `201 Created`
+[source,json]
+----
+{
+  "message": "Registration successful! Please check your email to verify your account.",
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "user": {
+    "id": 1,
+    "email": "user@example.com",
+    "name": "John Doe",
+    "email_verified": false,
+    "created_at": "2025-01-15T10:00:00Z"
+  }
+}
+----
+
+**Validation Rules:**
+* Email: Valid email format
+* Password: Minimum 8 characters
+* Name: 2-100 characters
+
+=== Login
+
+Authenticate and receive JWT token.
+
+`POST /api/auth/login`
+
+**Request Body:**
+[source,json]
+----
+{
+  "email": "user@example.com",
+  "password": "securepassword123"
+}
+----
+
+**Response:** `200 OK`
+[source,json]
+----
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "user": {
+    "id": 1,
+    "email": "user@example.com",
+    "name": "John Doe",
+    "email_verified": true
+  }
+}
+----
+
+=== Verify Email
+
+Verify user's email address via token sent in email.
+
+`GET /api/auth/verify-email/:token`
+
+**Response:** `200 OK`
+[source,json]
+----
+{
+  "message": "Email verified successfully! You can now join events."
+}
+----
+
+== Event Endpoints
+
+=== List Events
+
+Get all upcoming events with optional filters.
+
+`GET /api/events`
+
+**Query Parameters:**
+* `category` - Filter by category (e.g., `social_drinks`)
+* `lat` / `lng` / `radius` - Location-based filtering (radius in km)
+* `gender` - Filter by gender restriction (`any`, `male`, `female`, `non-binary`)
+* `min_age` / `max_age` - Age range filtering
+* `smoking_allowed` - Filter by smoking preference (`true`/`false`)
+* `alcohol_allowed` - Filter by alcohol preference (`true`/`false`)
+* `language` - Filter by event language
+
+**Example:**
+[source,bash]
+----
+GET /api/events?category=social_drinks&lat=52.2297&lng=21.0122&radius=10
+----
+
+**Response:** `200 OK`
+[source,json]
+----
+[
+  {
+    "id": 1,
+    "title": "Coffee Meetup",
+    "description": "Let's grab coffee and chat!",
+    "category": "social_drinks",
+    "latitude": 52.2297,
+    "longitude": 21.0122,
+    "start_time": "2025-12-01T10:00:00Z",
+    "end_time": "2025-12-01T12:00:00Z",
+    "creator_name": "John Doe",
+    "creator_contact": "john@example.com",
+    "max_participants": 10,
+    "participant_count": 3,
+    "gender_restriction": "any",
+    "age_min": 18,
+    "age_max": 99,
+    "smoking_allowed": false,
+    "alcohol_allowed": false,
+    "event_languages": ["English", "Polish"],
+    "slug": "coffee-meetup-abc123",
+    "created_at": "2025-11-01T10:00:00Z"
+  }
+]
+----
+
+=== Get Event
+
+Get details of a specific event by ID.
+
+`GET /api/events/:id`
+
+**Authentication:** Optional (privacy filters applied)
+
+**Response:** `200 OK` - Same structure as individual event in list
+
+**Privacy Notes:**
+* Unverified users see limited organizer info
+* Non-participants may see hidden organizer/participant info based on event settings
+
+=== Create Event
+
+Create a new event (requires authentication).
+
+`POST /api/events` 🔒
+
+**Request Body:**
+[source,json]
+----
+{
+  "title": "Weekend Hike",
+  "description": "Join us for a scenic mountain hike this weekend!",
+  "category": "adventure_travel",
+  "latitude": 52.2297,
+  "longitude": 21.0122,
+  "location_name": "Tatra Mountains",
+  "start_time": "2025-12-15T08:00:00Z",
+  "end_time": "2025-12-15T16:00:00Z",
+  "max_participants": 15,
+  "gender_restriction": "any",
+  "age_min": 18,
+  "age_max": 50,
+  "smoking_allowed": false,
+  "alcohol_allowed": false,
+  "event_languages": ["English", "Polish"],
+  "hide_organizer_until_joined": false,
+  "hide_participants_until_joined": false,
+  "require_verified_to_view": false,
+  "require_verified_to_join": true
+}
+----
+
+**Validation Rules:**
+* Title: 3-200 characters
+* Description: 10-5000 characters
+* Category: Must be valid category
+* Coordinates: Valid lat/lng ranges
+* Times: Start must be in future, end after start
+* Age: 0-150, min ≤ max
+* Gender: `any`, `male`, `female`, or `non-binary`
+
+**Response:** `201 Created`
+[source,json]
+----
+{
+  "id": 42,
+  "slug": "weekend-hike-xyz789",
+  ... (full event object)
+}
+----
+
+=== Update Event
+
+Update an existing event (requires ownership or admin).
+
+`PUT /api/events/:id` 🔒
+
+**Request Body:** Same as Create Event
+
+**Response:** `200 OK` - Updated event object
+
+=== Delete Event
+
+Delete an event (requires ownership or admin).
+
+`DELETE /api/events/:id` 🔒
+
+**Response:** `200 OK`
+[source,json]
+----
+{
+  "message": "Event deleted successfully"
+}
+----
+
+=== Join Event
+
+Join an event as a participant.
+
+`POST /api/events/:id/join` 🔒
+
+**Requirements:**
+* User must be authenticated
+* Email must be verified (platform-wide requirement)
+* Event must not be at capacity
+* User must not already be a participant
+
+**Response:** `200 OK`
+[source,json]
+----
+{
+  "message": "Successfully joined event!"
+}
+----
+
+=== Leave Event
+
+Leave an event you've joined.
+
+`DELETE /api/events/:id/leave` 🔒
+
+**Response:** `200 OK`
+[source,json]
+----
+{
+  "message": "Successfully left event"
+}
+----
+
+=== Get Participants
+
+Get list of event participants (with privacy filtering).
+
+`GET /api/events/:id/participants`
+
+**Authentication:** Optional (affects what info is visible)
+
+**Response:** `200 OK`
+[source,json]
+----
+[
+  {
+    "id": 5,
+    "name": "Jane Smith",
+    "bio": "Outdoor enthusiast",
+    "languages": "English, German",
+    "joined_at": "2025-11-10T14:30:00Z"
+  }
+]
+----
+
+**Privacy Notes:**
+* If `hide_participants_until_joined` is true, only participants/organizer see full list
+* Unverified viewers don't see contact information
+
+== Public Endpoints
+
+=== Get Public Event
+
+Get event details by slug (public access, no auth required).
+
+`GET /api/public/events/:slug`
+
+**Example:**
+[source,bash]
+----
+GET /api/public/events/weekend-hike-xyz789
+----
+
+**Response:** `200 OK` - Event object with privacy filters applied
+
+=== Download ICS Calendar File
+
+Download event as ICS calendar file for import into calendar apps.
+
+`GET /api/public/events/:slug/ics`
+
+**Response:** `200 OK`
+[source]
+----
+Content-Type: text/calendar
+Content-Disposition: attachment; filename="weekend-hike-xyz789.ics"
+
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Veidly//Event Calendar//EN
+BEGIN:VEVENT
+UID:event-42@veidly.com
+DTSTART:20251215T080000Z
+DTEND:20251215T160000Z
+SUMMARY:Weekend Hike
+DESCRIPTION:Join us for a scenic mountain hike this weekend!
+LOCATION:Tatra Mountains
+GEO:52.2297;21.0122
+URL:https://veidly.com/events/weekend-hike-xyz789
+END:VEVENT
+END:VCALENDAR
+----
+
+== User Profile Endpoints
+
+=== Get Own Profile
+
+Get authenticated user's profile.
+
+`GET /api/profile` 🔒
+
+**Response:** `200 OK`
+[source,json]
+----
+{
+  "id": 1,
+  "email": "user@example.com",
+  "name": "John Doe",
+  "bio": "Software developer and hiking enthusiast",
+  "phone": "+48123456789",
+  "threema": "ABCD1234",
+  "languages": "English, Polish",
+  "email_verified": true,
+  "created_at": "2025-01-15T10:00:00Z",
+  "created_events": [...],
+  "joined_events": [...]
+}
+----
+
+=== Update Profile
+
+Update authenticated user's profile.
+
+`PUT /api/profile` 🔒
+
+**Request Body:**
+[source,json]
+----
+{
+  "name": "John Smith",
+  "bio": "Updated bio text",
+  "phone": "+48987654321",
+  "threema": "WXYZ9876",
+  "languages": "English, German, Polish"
+}
+----
+
+**Validation Rules:**
+* Name: 2-100 characters (if provided)
+* Bio: Max 1000 characters
+* Default contact method: No specific format required
+
+**Response:** `200 OK` - Updated user object
+
+=== Get User Profile
+
+View another user's public profile.
+
+`GET /api/users/:id`
+
+**Authentication:** Optional
+
+**Response:** `200 OK`
+[source,json]
+----
+{
+  "id": 5,
+  "name": "Jane Smith",
+  "bio": "Outdoor enthusiast",
+  "languages": "English, German",
+  "created_events_count": 12,
+  "joined_events_count": 45
+}
+----
+
+**Privacy Notes:**
+* Email and contact methods not exposed in public profiles
+* Only public information visible
+
+== Location Search
+
+=== Search Places
+
+Search for places using OpenStreetMap Nominatim API.
+
+`GET /api/search-places`
+
+**Query Parameters:**
+* `q` - Search query (required)
+
+**Example:**
+[source,bash]
+----
+GET /api/search-places?q=Warsaw
+----
+
+**Response:** `200 OK`
+[source,json]
+----
+[
+  {
+    "place_id": 282331614,
+    "display_name": "Warsaw, Masovian Voivodeship, Poland",
+    "lat": "52.2319237",
+    "lon": "21.0067265",
+    "type": "city",
+    "importance": 0.8127948555444571
+  },
+  ...
+]
+----
+
+== Admin Endpoints
+
+All admin endpoints require admin role.
+
+=== List All Users
+
+`GET /api/admin/users` 🔒👑
+
+**Response:** `200 OK`
+[source,json]
+----
+[
+  {
+    "id": 1,
+    "email": "user@example.com",
+    "name": "John Doe",
+    "email_verified": true,
+    "is_admin": false,
+    "is_blocked": false,
+    "created_at": "2025-01-15T10:00:00Z"
+  }
+]
+----
+
+=== Block User
+
+`PUT /api/admin/users/:id/block` 🔒👑
+
+**Response:** `200 OK`
+[source,json]
+----
+{
+  "message": "User blocked successfully"
+}
+----
+
+=== Unblock User
+
+`PUT /api/admin/users/:id/unblock` 🔒👑
+
+**Response:** `200 OK`
+[source,json]
+----
+{
+  "message": "User unblocked successfully"
+}
+----
+
+=== Manually Verify User Email
+
+`PUT /api/admin/users/:id/verify-email` 🔒👑
+
+**Response:** `200 OK`
+[source,json]
+----
+{
+  "message": "Email verified successfully"
+}
+----
+
+=== List All Events (Admin)
+
+`GET /api/admin/events` 🔒👑
+
+**Response:** `200 OK` - Array of all events (including past events)
+
+=== Update Any Event (Admin)
+
+`PUT /api/admin/events/:id` 🔒👑
+
+**Request Body:** Same as regular event update
+
+**Response:** `200 OK` - Updated event object
+
+=== Delete Any Event (Admin)
+
+`DELETE /api/admin/events/:id` 🔒👑
+
+**Response:** `200 OK`
+[source,json]
+----
+{
+  "message": "Event deleted successfully"
+}
+----
+
+== Error Responses
+
+All errors follow a consistent format:
+
+[source,json]
+----
+{
+  "error": "Error message describing what went wrong"
+}
+----
+
+=== Common HTTP Status Codes
+
+[cols="1,3"]
+|===
+|Code |Meaning
+
+|`200 OK`
+|Request successful
+
+|`201 Created`
+|Resource created successfully
+
+|`400 Bad Request`
+|Invalid input or validation error
+
+|`401 Unauthorized`
+|Missing or invalid authentication token
+
+|`403 Forbidden`
+|Authenticated but not authorized for this action
+
+|`404 Not Found`
+|Resource doesn't exist
+
+|`409 Conflict`
+|Resource conflict (e.g., email already exists)
+
+|`429 Too Many Requests`
+|Rate limit exceeded
+
+|`500 Internal Server Error`
+|Server error (check logs)
+|===
+
+=== Example Error Responses
+
+**Validation Error:**
+[source,json]
+----
+{
+  "error": "title too short (min 3 characters)"
+}
+----
+
+**Authentication Error:**
+[source,json]
+----
+{
+  "error": "Invalid or expired token"
+}
+----
+
+**Permission Error:**
+[source,json]
+----
+{
+  "error": "Only the event creator can update this event"
+}
+----
+
+== Rate Limiting
+
+* Default: 100 requests per minute per IP address
+* Exceeding limit returns `429 Too Many Requests`
+* Headers included in response:
+  - `X-RateLimit-Limit`: Maximum requests per window
+  - `X-RateLimit-Remaining`: Requests remaining
+  - `X-RateLimit-Reset`: Time when limit resets
+
+== CORS
+
+* Development: All origins allowed
+* Production: Configured for `veidly.com` domain
+* Credentials supported for cookie-based authentication
+
+== Categories
+
+Valid event categories:
+
+[cols="1,3"]
+|===
+|Category ID |Display Name
+
+|`social_drinks`
+|Social & Drinks 🍻
+
+|`sports_fitness`
+|Sports & Fitness 🏃
+
+|`food_dining`
+|Food & Dining 🍕
+
+|`arts_culture`
+|Arts & Culture 🎨
+
+|`gaming_hobbies`
+|Gaming & Hobbies 🎮
+
+|`learning_skills`
+|Learning & Skills 📚
+
+|`adventure_travel`
+|Adventure & Travel ✈️
+
+|`parents_kids`
+|Parents & Kids 👶
+|===
+
+== Best Practices
+
+=== Pagination
+
+Currently, all endpoints return full result sets. Pagination is planned for future releases.
+
+=== Filtering
+
+Use query parameters to filter results efficiently instead of fetching all data client-side.
+
+=== Privacy-Aware Development
+
+* Always check `email_verified` before showing contact info
+* Respect `hide_organizer_until_joined` and `hide_participants_until_joined` flags
+* Don't expose sensitive data in public endpoints
+
+=== Security
+
+* Never log or expose JWT tokens
+* Always use HTTPS in production
+* Implement proper error handling to avoid leaking sensitive info
+* Validate all user input client-side and server-side
+
+== Testing the API
+
+=== Using cURL
+
+[source,bash]
+----
+# Register
+curl -X POST http://localhost:8080/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@example.com","password":"password123","name":"Test User"}'
+
+# Login
+curl -X POST http://localhost:8080/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@example.com","password":"password123"}'
+
+# Create event (with token)
+curl -X POST http://localhost:8080/api/events \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_TOKEN_HERE" \
+  -d '{"title":"Test Event","description":"Test description here",...}'
+----
+
+=== Using the Test Script
+
+A Python test script is available in `backend/seed_test_data.py`:
+
+[source,bash]
+----
+cd backend
+ADMIN_PASSWORD=admin123 python3 seed_test_data.py
+----
+
+This creates test users, events, and participations for development.
+
+== Changelog
+
+=== Version 1.0 (Current)
+
+* Initial API release
+* Full authentication system
+* Event CRUD with privacy controls
+* Profile management
+* Admin endpoints
+* Location search integration
+* ICS calendar export
+
+=== Planned Features
+
+* WebSocket for real-time updates
+* Push notifications
+* Event comments/discussions
+* Photo uploads
+* Advanced search with Elasticsearch
+* Pagination and cursor-based navigation
+
+== Support
+
+* **Documentation**: https://docs.veidly.com
+* **Issues**: https://github.com/yourusername/veidly/issues
+* **Email**: Contact via GitHub
+
+🔒 = Requires authentication +
+👑 = Requires admin role

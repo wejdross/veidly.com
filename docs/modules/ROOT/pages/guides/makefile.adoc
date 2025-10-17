@@ -1,0 +1,397 @@
+= Makefile Quick Reference
+:description: Complete guide to using the Veidly Makefile for fast development
+:keywords: makefile, development, commands, workflow
+
+This guide helps you work with Veidly development using the Makefile commands.
+
+== Quick Start (First Time Setup)
+
+[source,bash]
+----
+# Complete setup (install deps + create .env files)
+make setup
+
+# Generate secure secrets for .env
+make generate-secrets
+
+# Edit .env file and add the generated secrets
+# Then start development
+make dev
+----
+
+== Super Fast Dev Commands (One-Letter Aliases)
+
+[source,bash]
+----
+make d    # Quick dev start (no env checks)
+make b    # Build backend + frontend
+make t    # Quick test (fast feedback)
+make c    # Clean build artifacts
+----
+
+== Common Development Workflows
+
+=== Starting Development
+
+[source,bash]
+----
+# Full dev with environment checks
+make dev
+
+# Quick dev (skip checks, fastest)
+make dev-quick
+# or
+make start
+
+# Backend only
+make dev-backend
+
+# Frontend only
+make dev-frontend
+----
+
+=== Restart After Changes
+
+[source,bash]
+----
+# Stop and restart both servers
+make restart
+----
+
+=== Testing
+
+[source,bash]
+----
+# Quick tests (fastest, for rapid feedback)
+make test-quick
+make t                    # Same as above
+
+# Full tests with race detection
+make test
+
+# Backend tests only
+make test-backend         # With race detection
+make test-backend-quick   # Fast, no race detection
+
+# Frontend tests only
+make test-frontend
+
+# Tests with coverage
+make test-coverage
+make test-frontend-coverage
+----
+
+=== Building
+
+[source,bash]
+----
+# Build everything
+make build
+make b                    # Same as above
+
+# Build backend only
+make build-backend
+
+# Build frontend only
+make build-frontend
+----
+
+== Environment & Setup
+
+=== Environment Files
+
+[source,bash]
+----
+# Create .env files from examples
+make setup-env
+
+# Check environment configuration
+make check-env
+
+# Generate secure JWT_SECRET and ADMIN_PASSWORD
+make generate-secrets
+----
+
+=== Dependency Management
+
+[source,bash]
+----
+# Install all dependencies (backend + frontend)
+make install
+
+# Install backend dependencies
+make install-backend
+
+# Install frontend dependencies
+make install-frontend
+----
+
+== Database Management
+
+[source,bash]
+----
+# Initialize database (creates veidly.db)
+make db-init
+
+# Seed test data (50 events, 5 users)
+make db-seed
+
+# Clean database
+make db-clean
+----
+
+== Cleaning & Maintenance
+
+[source,bash]
+----
+# Clean all build artifacts
+make clean
+
+# Deep clean (includes node_modules, go cache)
+make clean-all
+
+# Clean only backend
+make clean-backend
+
+# Clean only frontend
+make clean-frontend
+----
+
+== Production Commands
+
+[source,bash]
+----
+# Production build (optimized)
+make prod
+
+# Build production artifacts
+make build-prod
+----
+
+== Utility Commands
+
+[source,bash]
+----
+# Show all available commands
+make help
+
+# Run linters
+make lint
+make lint-backend
+make lint-frontend
+
+# Format code
+make fmt
+make fmt-backend
+make fmt-frontend
+
+# Stop all running servers
+make stop
+----
+
+== Pro Tips
+
+=== Fastest Workflow
+
+For the absolute fastest development cycle:
+
+[source,bash]
+----
+# First time
+make setup && make generate-secrets
+# Edit .env files with generated secrets
+
+# Daily development
+make d    # Start dev (fastest)
+make t    # Run tests when needed
+make restart    # If things get weird
+----
+
+=== Testing Strategy
+
+[source,bash]
+----
+# During development (fast feedback)
+make t
+
+# Before committing (thorough)
+make test
+
+# Before deploying (with coverage)
+make test-coverage
+----
+
+=== Build Order
+
+The build order is optimized:
+
+1. Backend builds first (Go is faster)
+2. Frontend builds second (needs backend to be ready)
+3. Both can be built in parallel with `make build -j2`
+
+== Troubleshooting
+
+=== Port Already in Use
+
+[source,bash]
+----
+# Stop all servers
+make stop
+
+# Or manually kill processes
+lsof -ti:8080 | xargs kill -9  # Backend
+lsof -ti:5173 | xargs kill -9  # Frontend
+----
+
+=== Environment Issues
+
+[source,bash]
+----
+# Check your environment
+make check-env
+
+# Regenerate .env files
+rm .env frontend/.env
+make setup-env
+make generate-secrets
+----
+
+=== Database Issues
+
+[source,bash]
+----
+# Clean and reinitialize
+make db-clean
+make db-init
+make db-seed
+----
+
+=== Dependency Issues
+
+[source,bash]
+----
+# Full clean and reinstall
+make clean-all
+make install
+----
+
+== Makefile Reference
+
+=== All Available Targets
+
+.Development Commands
+[cols="1,3"]
+|===
+|Command |Description
+
+|`make dev`
+|Start full development environment with checks
+
+|`make dev-quick` or `make start`
+|Start development without environment checks (fastest)
+
+|`make dev-backend`
+|Start only backend server
+
+|`make dev-frontend`
+|Start only frontend server
+
+|`make restart`
+|Stop and restart both servers
+|===
+
+.Build Commands
+[cols="1,3"]
+|===
+|Command |Description
+
+|`make build`
+|Build both backend and frontend
+
+|`make build-backend`
+|Build backend only
+
+|`make build-frontend`
+|Build frontend only
+
+|`make build-prod`
+|Production build (optimized)
+|===
+
+.Test Commands
+[cols="1,3"]
+|===
+|Command |Description
+
+|`make test`
+|Run all tests with race detection
+
+|`make test-quick`
+|Fast tests without race detection
+
+|`make test-backend`
+|Backend tests with race detection
+
+|`make test-backend-quick`
+|Fast backend tests
+
+|`make test-frontend`
+|Frontend tests
+
+|`make test-coverage`
+|Tests with coverage report
+
+|`make test-frontend-coverage`
+|Frontend tests with coverage
+|===
+
+.Database Commands
+[cols="1,3"]
+|===
+|Command |Description
+
+|`make db-init`
+|Initialize database
+
+|`make db-seed`
+|Seed test data
+
+|`make db-clean`
+|Clean database
+|===
+
+.Utility Commands
+[cols="1,3"]
+|===
+|Command |Description
+
+|`make setup`
+|Complete first-time setup
+
+|`make install`
+|Install dependencies
+
+|`make clean`
+|Clean build artifacts
+
+|`make clean-all`
+|Deep clean including dependencies
+
+|`make help`
+|Show all commands
+
+|`make lint`
+|Run linters
+
+|`make fmt`
+|Format code
+
+|`make stop`
+|Stop all servers
+|===
+
+== See Also
+
+* xref:guides/quickstart.adoc[Quick Start Guide]
+* xref:guides/deployment.adoc[Deployment Guide]
+* xref:guides/test-data.adoc[Test Data Guide]
