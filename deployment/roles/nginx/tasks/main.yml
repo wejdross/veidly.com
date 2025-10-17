@@ -4,25 +4,28 @@
     name: nginx
     state: present
 
-- name: Create nginx configuration
+- name: Check if SSL certificate exists
+  stat:
+    path: /etc/letsencrypt/live/{{ domain }}/fullchain.pem
+  register: cert_file
+
+- name: Create HTTP-only nginx configuration (for initial SSL setup)
   template:
-    src: nginx-veidly.conf.j2
+    src: nginx-veidly-http.conf.j2
     dest: /etc/nginx/sites-available/veidly
     mode: '0644'
-  notify: reload nginx
+  when: not cert_file.stat.exists
 
 - name: Enable site
   file:
     src: /etc/nginx/sites-available/veidly
     dest: /etc/nginx/sites-enabled/veidly
     state: link
-  notify: reload nginx
 
 - name: Remove default site
   file:
     path: /etc/nginx/sites-enabled/default
     state: absent
-  notify: reload nginx
 
 - name: Test nginx configuration
   command: nginx -t
@@ -36,11 +39,6 @@
 
 - name: Setup SSL with Let's Encrypt
   block:
-    - name: Check if certificate exists
-      stat:
-        path: /etc/letsencrypt/live/{{ domain }}/fullchain.pem
-      register: cert_file
-
     - name: Obtain SSL certificate
       command: >
         certbot --nginx
@@ -50,6 +48,14 @@
         --agree-tos
         --email {{ admin_email }}
       when: not cert_file.stat.exists
+
+    - name: Create full nginx configuration with SSL
+      template:
+        src: nginx-veidly.conf.j2
+        dest: /etc/nginx/sites-available/veidly
+        mode: '0644'
+      when: not cert_file.stat.exists
+      notify: reload nginx
 
     - name: Setup certificate renewal cron
       cron:
