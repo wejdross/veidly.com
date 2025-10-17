@@ -32,8 +32,8 @@ StandardError=append:{{ log_dir }}/backend.error.log
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
-ProtectHome=true
-ReadWritePaths={{ db_dir }} {{ log_dir }}
+ProtectHome=read-only
+ReadWritePaths={{ db_dir }} {{ log_dir }} {{ app_dir }}
 
 [Install]
 WantedBy=multi-user.target
