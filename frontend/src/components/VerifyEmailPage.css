@@ -1,0 +1,108 @@
+.verify-email-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 20px;
+}
+
+.verify-email-container {
+  background: white;
+  padding: 60px 40px;
+  border-radius: 20px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  text-align: center;
+  max-width: 500px;
+  width: 100%;
+}
+
+.spinner {
+  width: 60px;
+  height: 60px;
+  margin: 0 auto 30px;
+  border: 6px solid #f3f3f3;
+  border-top: 6px solid #667eea;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.success-icon {
+  width: 80px;
+  height: 80px;
+  margin: 0 auto 30px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 50px;
+  color: white;
+  font-weight: bold;
+}
+
+.error-icon {
+  width: 80px;
+  height: 80px;
+  margin: 0 auto 30px;
+  background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 50px;
+  color: white;
+  font-weight: bold;
+}
+
+.verify-email-container h1 {
+  font-size: 32px;
+  color: #2c3e50;
+  margin-bottom: 15px;
+  font-weight: 700;
+}
+
+.verify-email-container p {
+  font-size: 16px;
+  color: #666;
+  margin-bottom: 10px;
+  line-height: 1.6;
+}
+
+.redirect-message {
+  font-size: 14px;
+  color: #999;
+  margin-top: 20px;
+}
+
+.home-button {
+  margin-top: 30px;
+  padding: 15px 40px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 50px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+}
+
+.home-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+}
+
+.home-button:active {
+  transform: translateY(0);
+}

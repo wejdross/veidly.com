@@ -1,0 +1,42 @@
+# Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+go.work
+veidly
+
+# Database
+*.db
+*.db-journal
+veidly_backup_*.db
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Testing
+coverage.out
+*.test
+veidly-test-suite.db
+
+# Documentation build
+build/

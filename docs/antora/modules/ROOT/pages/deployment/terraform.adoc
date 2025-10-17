@@ -1,0 +1,462 @@
+= Terraform Deployment Guide
+:description: Deploy Veidly infrastructure to AWS using Terraform
+:keywords: terraform, aws, infrastructure, deployment
+
+This guide walks you through deploying Veidly's infrastructure to AWS using Terraform.
+
+== Overview
+
+Veidly's Terraform configuration provisions:
+
+* **EC2 Instance**: Ubuntu 22.04 server with application runtime
+* **EBS Volume**: 20GB encrypted volume for persistent data
+* **Elastic IP**: Static IP address for the instance
+* **Security Groups**: Firewall rules for HTTP/HTTPS/SSH
+* **IAM Roles**: Permissions for CloudWatch and S3 access
+* **S3 Bucket**: Automated backup storage with lifecycle policies
+* **CloudWatch Logs**: Centralized logging for application and nginx
+* **Route53 Records**: DNS configuration for veidly.com
+
+== Prerequisites
+
+=== Required Tools
+
+* **Terraform 1.0+** - https://www.terraform.io/downloads[Download Terraform]
+* **AWS CLI** - https://aws.amazon.com/cli/[Download AWS CLI]
+* **AWS Account** with appropriate permissions
+* **Domain**: veidly.com already configured in Route53
+
+=== AWS Permissions Required
+
+Your AWS user/role needs permissions for:
+
+* EC2 (instances, volumes, elastic IPs, security groups)
+* IAM (roles, policies, instance profiles)
+* S3 (bucket creation and management)
+* CloudWatch (log groups and metrics)
+* Route53 (DNS record management)
+
+=== Generate SSH Key Pair
+
+Generate an SSH key for EC2 access:
+
+[source,bash]
+----
+ssh-keygen -t ed25519 -f ~/.ssh/veidly-production -C "veidly-production"
+----
+
+Import the public key to AWS:
+
+[source,bash]
+----
+aws ec2 import-key-pair \
+  --key-name veidly-production \
+  --public-key-material fileb://~/.ssh/veidly-production.pub \
+  --region us-east-1
+----
+
+== Step 1: Configure Terraform Backend
+
+Create S3 bucket and DynamoDB table for Terraform state:
+
+[source,bash]
+----
+# Create S3 bucket for state
+aws s3api create-bucket \
+  --bucket veidly-terraform-state \
+  --region us-east-1
+
+# Enable versioning
+aws s3api put-bucket-versioning \
+  --bucket veidly-terraform-state \
+  --versioning-configuration Status=Enabled
+
+# Create DynamoDB table for state locking
+aws dynamodb create-table \
+  --table-name veidly-terraform-locks \
+  --attribute-definitions AttributeName=LockID,AttributeType=S \
+  --key-schema AttributeName=LockID,KeyType=HASH \
+  --provisioned-throughput ReadCapacityUnits=1,WriteCapacityUnits=1 \
+  --region us-east-1
+----
+
+== Step 2: Configure Variables
+
+Navigate to the production environment:
+
+[source,bash]
+----
+cd terraform/environments/production
+----
+
+Create `terraform.tfvars` from the example:
+
+[source,bash]
+----
+cp terraform.tfvars.example terraform.tfvars
+----
+
+Edit `terraform.tfvars` with your values:
+
+[source,hcl]
+----
+# AWS Configuration
+aws_region = "us-east-1"
+environment = "production"
+
+# Domain Configuration
+domain_name = "veidly.com"
+route53_zone_id = "Z1234567890ABC"  # Your Route53 zone ID
+
+# EC2 Configuration
+instance_type = "t3.small"
+ssh_key_name = "veidly-production"
+
+# Database Configuration
+db_path = "/opt/veidly/data/veidly.db"
+
+# Email Configuration (Mailgun)
+mailgun_domain = "mg.veidly.com"
+mailgun_api_key = "key-your-mailgun-api-key"
+mailgun_from_email = "noreply@veidly.com"
+
+# Security
+jwt_secret = "your-secure-random-jwt-secret-min-32-chars"
+allowed_ssh_ips = ["YOUR.IP.ADDRESS/32"]  # Your IP for SSH access
+----
+
+IMPORTANT: Store `terraform.tfvars` securely and never commit it to version control. It contains sensitive credentials.
+
+=== Finding Your Route53 Zone ID
+
+[source,bash]
+----
+aws route53 list-hosted-zones --query "HostedZones[?Name=='veidly.com.'].Id" --output text
+----
+
+=== Generating a Secure JWT Secret
+
+[source,bash]
+----
+openssl rand -base64 32
+----
+
+== Step 3: Initialize Terraform
+
+Initialize Terraform and download providers:
+
+[source,bash]
+----
+terraform init
+----
+
+Expected output:
+----
+Initializing modules...
+Initializing the backend...
+Initializing provider plugins...
+Terraform has been successfully initialized!
+----
+
+== Step 4: Plan the Infrastructure
+
+Review what Terraform will create:
+
+[source,bash]
+----
+terraform plan
+----
+
+This command shows:
+
+* Resources to be created (should be ~15-20 resources)
+* Configuration details for each resource
+* No destructive changes (for first deployment)
+
+Review carefully to ensure:
+
+* ✅ Correct AWS region
+* ✅ Correct domain name
+* ✅ Appropriate instance type
+* ✅ EBS volume has `prevent_destroy = true`
+* ✅ SSH allowed only from your IP
+
+== Step 5: Apply the Configuration
+
+Deploy the infrastructure:
+
+[source,bash]
+----
+terraform apply
+----
+
+Type `yes` when prompted. The deployment takes 5-10 minutes.
+
+== Step 6: Verify the Deployment
+
+After `terraform apply` completes, note the outputs:
+
+[source]
+----
+Outputs:
+
+instance_id = "i-0abcdef1234567890"
+instance_public_ip = "54.123.45.67"
+elastic_ip = "54.123.45.67"
+s3_backup_bucket = "veidly-backups-production"
+cloudwatch_log_group = "/aws/ec2/veidly-production"
+----
+
+=== Verify EC2 Instance
+
+[source,bash]
+----
+# SSH into the instance
+ssh -i ~/.ssh/veidly-production ubuntu@54.123.45.67
+
+# Check user-data script completion
+tail -f /var/log/user-data.log
+
+# Verify services
+systemctl status veidly
+systemctl status nginx
+----
+
+=== Verify DNS Configuration
+
+[source,bash]
+----
+# Check DNS resolution
+dig veidly.com +short
+dig www.veidly.com +short
+
+# Should return your Elastic IP
+----
+
+DNS propagation can take up to 48 hours, but typically completes within 5-10 minutes.
+
+== Step 7: Configure SSL Certificates
+
+SSH into the instance and run Certbot:
+
+[source,bash]
+----
+ssh -i ~/.ssh/veidly-production ubuntu@54.123.45.67
+
+# Run certbot (after DNS propagation)
+sudo certbot --nginx -d veidly.com -d www.veidly.com \
+  --non-interactive \
+  --agree-tos \
+  --email admin@veidly.com
+
+# Verify SSL
+sudo systemctl reload nginx
+----
+
+Test SSL at https://www.ssllabs.com/ssltest/analyze.html?d=veidly.com
+
+== Infrastructure Management
+
+=== Viewing Current State
+
+[source,bash]
+----
+# List all resources
+terraform state list
+
+# Show specific resource details
+terraform state show aws_instance.veidly
+
+# View outputs
+terraform output
+----
+
+=== Updating Infrastructure
+
+Make changes to `.tf` files or `terraform.tfvars`, then:
+
+[source,bash]
+----
+terraform plan    # Review changes
+terraform apply   # Apply changes
+----
+
+=== Destroying Infrastructure
+
+WARNING: This destroys all resources except the EBS volume (protected by `prevent_destroy`).
+
+[source,bash]
+----
+terraform destroy
+----
+
+To destroy the EBS volume, first remove the lifecycle block:
+
+[source,hcl]
+----
+# In terraform/modules/ec2/main.tf
+resource "aws_ebs_volume" "veidly_data" {
+  # ... other configuration ...
+
+  # Comment out or remove:
+  # lifecycle {
+  #   prevent_destroy = true
+  # }
+}
+----
+
+Then run `terraform apply` followed by `terraform destroy`.
+
+== Terraform Modules
+
+The infrastructure is organized into reusable modules:
+
+=== Security Module
+
+Location: `terraform/modules/security/`
+
+Provisions:
+
+* Security group with ingress rules (HTTP, HTTPS, SSH)
+* IAM role for EC2 with CloudWatch and S3 permissions
+* IAM instance profile
+
+=== EC2 Module
+
+Location: `terraform/modules/ec2/`
+
+Provisions:
+
+* EC2 instance with Ubuntu 22.04
+* EBS volume (20GB, encrypted, persistent)
+* Elastic IP
+* CloudWatch log group
+* S3 backup bucket with versioning and lifecycle
+* User data script for instance initialization
+
+=== Route53 Module
+
+Location: `terraform/modules/route53/`
+
+Provisions:
+
+* A record for root domain (veidly.com)
+* A record for www subdomain (www.veidly.com)
+
+== User Data Script
+
+The user data script (`terraform/modules/ec2/user-data.sh`) runs on first boot and:
+
+1. **Updates system packages**
+2. **Installs dependencies**: nginx, certbot, sqlite3, awscli, CloudWatch agent
+3. **Creates veidly user** with home directory `/opt/veidly`
+4. **Mounts EBS volume** to `/opt/veidly/data`
+5. **Creates .env file** with configuration
+6. **Configures nginx** with rate limiting, gzip, security headers
+7. **Creates systemd service** with security hardening
+8. **Sets up backup script** and cron job (daily at 2 AM)
+9. **Configures CloudWatch agent** for logs and metrics
+10. **Starts all services**
+
+View the script execution log:
+
+[source,bash]
+----
+ssh -i ~/.ssh/veidly-production ubuntu@ELASTIC_IP
+tail -f /var/log/user-data.log
+----
+
+== Cost Estimation
+
+Expected monthly costs for production environment:
+
+[options="header"]
+|===
+|Service |Configuration |Monthly Cost (USD)
+|EC2 t3.small |On-Demand, us-east-1 |~$15
+|EBS Volume |20GB gp3 |~$2
+|Elastic IP |Associated with running instance |$0
+|S3 Backup Storage |~5GB (with lifecycle) |~$0.15
+|CloudWatch Logs |~1GB ingestion |~$0.50
+|Data Transfer |Assuming 100GB/month |~$9
+|**Total** | |**~$27/month**
+|===
+
+NOTE: Costs vary by region and usage. Use the https://calculator.aws/[AWS Pricing Calculator] for accurate estimates.
+
+== Troubleshooting
+
+=== Terraform Init Fails
+
+**Issue**: Backend initialization fails
+
+**Solution**: Verify S3 bucket and DynamoDB table exist:
+[source,bash]
+----
+aws s3 ls s3://veidly-terraform-state
+aws dynamodb describe-table --table-name veidly-terraform-locks
+----
+
+=== Terraform Apply Fails
+
+**Issue**: `UnauthorizedOperation` or permission errors
+
+**Solution**: Verify AWS credentials and IAM permissions:
+[source,bash]
+----
+aws sts get-caller-identity
+----
+
+**Issue**: `InvalidKeyPair.NotFound`
+
+**Solution**: Verify SSH key name matches:
+[source,bash]
+----
+aws ec2 describe-key-pairs --key-names veidly-production
+----
+
+=== Cannot SSH to Instance
+
+**Issue**: Connection timeout
+
+**Solution**:
+1. Check security group allows your IP
+2. Verify instance is running
+3. Verify elastic IP is attached
+
+[source,bash]
+----
+# Check instance state
+aws ec2 describe-instances --instance-ids i-xxxxx
+
+# Check security group rules
+terraform output security_group_id
+aws ec2 describe-security-groups --group-ids sg-xxxxx
+----
+
+=== EBS Volume Not Mounted
+
+**Issue**: Application can't write to `/opt/veidly/data`
+
+**Solution**: Check user-data script logs and mount status:
+[source,bash]
+----
+ssh -i ~/.ssh/veidly-production ubuntu@ELASTIC_IP
+tail -f /var/log/user-data.log
+df -h | grep /opt/veidly/data
+lsblk
+----
+
+== Next Steps
+
+* xref:deployment/ci-cd.adoc[Set up CI/CD Pipeline] for automated deployments
+* xref:deployment/ssl.adoc[Configure SSL] with Let's Encrypt
+* xref:deployment/monitoring.adoc[Set up Monitoring] with CloudWatch dashboards
+* xref:admin/backups.adoc[Configure Backups] and test restoration
+
+== Additional Resources
+
+* https://www.terraform.io/docs[Terraform Documentation]
+* https://docs.aws.amazon.com/ec2/[AWS EC2 Documentation]
+* xref:admin/troubleshooting.adoc[Troubleshooting Guide]
+* xref:deployment/infrastructure.adoc[Infrastructure Setup Overview]

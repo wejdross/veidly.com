@@ -1,0 +1,905 @@
+= Authentication API
+:description: User authentication and account management endpoints
+:keywords: api, authentication, jwt, login, register
+
+Complete API reference for authentication and user account management.
+
+== Overview
+
+The Authentication API provides endpoints for:
+
+* User registration
+* User login (JWT token generation)
+* Email verification
+* Password management
+* Account information
+
+== JWT Authentication
+
+Veidly uses JWT (JSON Web Tokens) for authentication.
+
+=== Token Structure
+
+JWT tokens contain:
+
+* **User ID**: Unique identifier
+* **Email**: User's email address
+* **Is Admin**: Admin status flag
+* **Expiration**: 24 hours from issue
+
+=== Using Tokens
+
+Include the token in the `Authorization` header:
+
+[source,bash]
+----
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+----
+
+=== Token Expiration
+
+* **Lifetime**: 24 hours
+* **Renewal**: Re-login required after expiration
+* **Error**: `401 Unauthorized` when expired
+
+== Endpoints
+
+=== Register
+
+Create a new user account.
+
+[source]
+----
+POST /api/auth/register
+Content-Type: application/json
+----
+
+==== Request Body
+
+[options="header"]
+|===
+|Field |Type |Required |Description
+
+|`email`
+|string
+|Yes
+|Valid email address (max 100 chars)
+
+|`password`
+|string
+|Yes
+|Password (min 6 chars, max 100 chars)
+
+|`name`
+|string
+|Yes
+|Display name (1-100 chars)
+|===
+
+==== Request Example
+
+[source,bash]
+----
+curl -X POST http://localhost:8080/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "newuser@example.com",
+    "password": "securepass123",
+    "name": "John Doe"
+  }'
+----
+
+==== Response Example
+
+[source,json]
+----
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJlbWFpbCI6Im5ld3VzZXJAZXhhbXBsZS5jb20iLCJpc19hZG1pbiI6ZmFsc2UsImV4cCI6MTczNDM1MDQwMH0.signature",
+  "user": {
+    "id": 1,
+    "email": "newuser@example.com",
+    "name": "John Doe",
+    "is_admin": false,
+    "email_verified": false,
+    "created_at": "2025-10-15T14:30:00Z"
+  }
+}
+----
+
+==== Post-Registration
+
+After successful registration:
+
+1. **JWT token** is returned for immediate authentication
+2. **Verification email** is sent (if Mailgun configured)
+3. **User can login** but may have limited permissions until verified
+
+==== Response Codes
+
+* `201 Created` - User registered successfully
+* `400 Bad Request` - Invalid request data
+* `409 Conflict` - Email already registered
+* `422 Unprocessable Entity` - Validation failed
+* `429 Too Many Requests` - Rate limit exceeded (5/minute)
+
+---
+
+=== Login
+
+Authenticate and receive a JWT token.
+
+[source]
+----
+POST /api/auth/login
+Content-Type: application/json
+----
+
+==== Request Body
+
+[options="header"]
+|===
+|Field |Type |Required |Description
+
+|`email`
+|string
+|Yes
+|User's email address
+
+|`password`
+|string
+|Yes
+|User's password
+|===
+
+==== Request Example
+
+[source,bash]
+----
+curl -X POST http://localhost:8080/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "user@example.com",
+    "password": "securepass123"
+  }'
+----
+
+==== Response Example
+
+[source,json]
+----
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "user": {
+    "id": 1,
+    "email": "user@example.com",
+    "name": "John Doe",
+    "is_admin": false,
+    "email_verified": true,
+    "created_at": "2025-10-01T10:30:00Z"
+  }
+}
+----
+
+==== Token Storage
+
+Store the token securely:
+
+**Web (JavaScript)**:
+[source,javascript]
+----
+// Store in localStorage
+localStorage.setItem('token', response.token);
+localStorage.setItem('user', JSON.stringify(response.user));
+
+// Include in subsequent requests
+axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+----
+
+**Mobile**:
+* iOS: Use Keychain
+* Android: Use EncryptedSharedPreferences
+
+==== Response Codes
+
+* `200 OK` - Login successful
+* `400 Bad Request` - Invalid request data
+* `401 Unauthorized` - Invalid credentials
+* `403 Forbidden` - Account blocked
+* `429 Too Many Requests` - Rate limit exceeded (5/minute)
+
+---
+
+=== Verify Email
+
+Verify a user's email address using the token from the verification email.
+
+[source]
+----
+GET /api/auth/verify-email?token=<verification_token>
+----
+
+==== Query Parameters
+
+[options="header"]
+|===
+|Parameter |Type |Required |Description
+
+|`token`
+|string
+|Yes
+|Email verification token from email link
+|===
+
+==== Request Example
+
+[source,bash]
+----
+curl "http://localhost:8080/api/auth/verify-email?token=abc123def456"
+----
+
+==== Response Example
+
+[source,json]
+----
+{
+  "message": "Email verified successfully"
+}
+----
+
+==== Email Verification Flow
+
+1. **User registers** with email address
+2. **System sends email** with verification link:
+   ```
+   https://veidly.com/verify-email?token=abc123def456
+   ```
+3. **User clicks link** (redirects to frontend)
+4. **Frontend calls** `/api/auth/verify-email?token=abc123def456`
+5. **Backend verifies** token and marks email as verified
+6. **User gains full access** to create and join events
+
+==== Verification Email
+
+Example email content:
+
+----
+Subject: Verify your Veidly email address
+
+Hi John,
+
+Welcome to Veidly! Please verify your email address by clicking the link below:
+
+https://veidly.com/verify-email?token=abc123def456
+
+This link will expire in 24 hours.
+
+Thanks,
+The Veidly Team
+----
+
+==== Response Codes
+
+* `200 OK` - Email verified successfully
+* `400 Bad Request` - Invalid or expired token
+* `404 Not Found` - Token not found
+
+---
+
+=== Resend Verification Email
+
+Request a new verification email.
+
+[source]
+----
+POST /api/auth/resend-verification
+Authorization: Bearer <token>
+----
+
+==== Request Example
+
+[source,bash]
+----
+curl -X POST http://localhost:8080/api/auth/resend-verification \
+  -H "Authorization: Bearer $TOKEN"
+----
+
+==== Response Example
+
+[source,json]
+----
+{
+  "message": "Verification email sent"
+}
+----
+
+==== Response Codes
+
+* `200 OK` - Email sent successfully
+* `400 Bad Request` - Email already verified
+* `401 Unauthorized` - Authentication required
+* `429 Too Many Requests` - Rate limit exceeded
+
+---
+
+=== Get Current User
+
+Get information about the currently authenticated user.
+
+[source]
+----
+GET /api/auth/me
+Authorization: Bearer <token>
+----
+
+==== Request Example
+
+[source,bash]
+----
+curl http://localhost:8080/api/auth/me \
+  -H "Authorization: Bearer $TOKEN"
+----
+
+==== Response Example
+
+[source,json]
+----
+{
+  "id": 1,
+  "email": "user@example.com",
+  "name": "John Doe",
+  "is_admin": false,
+  "email_verified": true,
+  "created_at": "2025-10-01T10:30:00Z"
+}
+----
+
+==== Response Codes
+
+* `200 OK` - User information returned
+* `401 Unauthorized` - Invalid or expired token
+
+---
+
+=== Update Profile
+
+Update user profile information.
+
+[source]
+----
+PUT /api/auth/profile
+Authorization: Bearer <token>
+Content-Type: application/json
+----
+
+==== Request Body
+
+[options="header"]
+|===
+|Field |Type |Required |Description
+
+|`name`
+|string
+|No
+|Display name (1-100 chars)
+
+|`email`
+|string
+|No
+|New email address (triggers new verification)
+|===
+
+==== Request Example
+
+[source,bash]
+----
+curl -X PUT http://localhost:8080/api/auth/profile \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "John Smith"
+  }'
+----
+
+==== Response Example
+
+[source,json]
+----
+{
+  "id": 1,
+  "email": "user@example.com",
+  "name": "John Smith",
+  "is_admin": false,
+  "email_verified": true,
+  "created_at": "2025-10-01T10:30:00Z"
+}
+----
+
+==== Email Change
+
+When changing email:
+
+1. **New email** is saved but marked as unverified
+2. **Verification email** sent to new address
+3. **Old email** remains active until new one is verified
+4. **Permissions reduced** until verification complete
+
+==== Response Codes
+
+* `200 OK` - Profile updated successfully
+* `400 Bad Request` - Invalid data
+* `401 Unauthorized` - Authentication required
+* `409 Conflict` - Email already in use
+
+---
+
+=== Change Password
+
+Change user password.
+
+[source]
+----
+POST /api/auth/change-password
+Authorization: Bearer <token>
+Content-Type: application/json
+----
+
+==== Request Body
+
+[options="header"]
+|===
+|Field |Type |Required |Description
+
+|`current_password`
+|string
+|Yes
+|Current password
+
+|`new_password`
+|string
+|Yes
+|New password (min 6 chars)
+|===
+
+==== Request Example
+
+[source,bash]
+----
+curl -X POST http://localhost:8080/api/auth/change-password \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "current_password": "oldpass123",
+    "new_password": "newsecurepass456"
+  }'
+----
+
+==== Response Example
+
+[source,json]
+----
+{
+  "message": "Password changed successfully"
+}
+----
+
+==== Post-Change
+
+After password change:
+
+* **Current session** remains valid (JWT token not invalidated)
+* **Other sessions** remain valid until token expiration
+* **User should re-login** on other devices for security
+
+==== Response Codes
+
+* `200 OK` - Password changed successfully
+* `400 Bad Request` - Invalid data
+* `401 Unauthorized` - Current password incorrect or token invalid
+
+---
+
+== Password Security
+
+=== Hashing
+
+Passwords are hashed using bcrypt:
+
+* **Algorithm**: bcrypt
+* **Cost Factor**: 10 (configurable)
+* **Salt**: Automatically generated per password
+
+=== Password Requirements
+
+* **Minimum length**: 6 characters
+* **Maximum length**: 100 characters
+* **No complexity requirements** (to avoid user frustration)
+
+=== Best Practices
+
+For users:
+
+* Use unique passwords for each service
+* Consider using a password manager
+* Enable two-factor authentication (when available)
+
+For developers:
+
+* Never log passwords
+* Never send passwords in error messages
+* Always use HTTPS in production
+* Consider implementing rate limiting on auth endpoints
+
+== Email Verification
+
+=== Why Email Verification?
+
+Email verification helps:
+
+* **Reduce spam**: Prevents fake accounts
+* **Ensure deliverability**: Confirms email is valid
+* **Enable recovery**: Password reset requires valid email
+* **Build trust**: Verified users are more trustworthy
+
+=== Verification States
+
+[options="header"]
+|===
+|State |Can Login? |Can Create Events? |Can Join Events?
+
+|Unverified
+|✅ Yes
+|❌ No (default)
+|✅ Yes (if event allows)
+
+|Verified
+|✅ Yes
+|✅ Yes
+|✅ Yes
+
+|Admin
+|✅ Yes
+|✅ Yes (always)
+|✅ Yes (always)
+|===
+
+=== Manual Verification (Admin)
+
+Admins can manually verify users:
+
+[source,bash]
+----
+# Via database (development only)
+sqlite3 /tmp/veidly.db "UPDATE users SET email_verified = 1 WHERE email = 'user@example.com';"
+
+# Via admin API (future)
+curl -X POST http://localhost:8080/api/admin/users/1/verify \
+  -H "Authorization: Bearer $ADMIN_TOKEN"
+----
+
+== Rate Limiting
+
+Authentication endpoints have strict rate limits:
+
+[options="header"]
+|===
+|Endpoint |Rate Limit |Burst |Window
+
+|`/api/auth/register`
+|5 requests
+|3
+|1 minute
+
+|`/api/auth/login`
+|5 requests
+|3
+|1 minute
+
+|`/api/auth/verify-email`
+|10 requests
+|5
+|1 minute
+
+|`/api/auth/resend-verification`
+|3 requests
+|1
+|5 minutes
+
+|`/api/auth/change-password`
+|5 requests
+|2
+|5 minutes
+|===
+
+When rate limited:
+
+[source,json]
+----
+{
+  "error": "Rate limit exceeded. Please try again later."
+}
+----
+
+HTTP Status: `429 Too Many Requests`
+
+== Error Responses
+
+Common authentication errors:
+
+=== Invalid Credentials
+
+[source,json]
+----
+{
+  "error": "Invalid email or password"
+}
+----
+
+Status: `401 Unauthorized`
+
+=== Email Already Registered
+
+[source,json]
+----
+{
+  "error": "Email already registered"
+}
+----
+
+Status: `409 Conflict`
+
+=== Token Expired
+
+[source,json]
+----
+{
+  "error": "Token expired"
+}
+----
+
+Status: `401 Unauthorized`
+
+=== Account Blocked
+
+[source,json]
+----
+{
+  "error": "Account has been blocked"
+}
+----
+
+Status: `403 Forbidden`
+
+=== Validation Errors
+
+[source,json]
+----
+{
+  "error": "Validation failed",
+  "details": {
+    "email": "Invalid email format",
+    "password": "Password must be at least 6 characters"
+  }
+}
+----
+
+Status: `422 Unprocessable Entity`
+
+== Security Considerations
+
+=== Token Storage
+
+**Do**:
+* Store tokens in httpOnly cookies (server-side)
+* Store in localStorage/sessionStorage (client-side)
+* Clear tokens on logout
+
+**Don't**:
+* Store in URL parameters
+* Store in regular cookies accessible to JavaScript
+* Store in unencrypted local storage on mobile
+
+=== Token Transmission
+
+* Always use HTTPS in production
+* Include tokens in `Authorization` header, not URL
+* Validate token on every request
+
+=== Password Handling
+
+* Never log passwords
+* Never include passwords in error messages
+* Hash passwords before storage (bcrypt)
+* Validate password strength client-side
+
+=== CORS Configuration
+
+The API allows requests from configured origins:
+
+* Development: `http://localhost:3000`
+* Production: `https://veidly.com`, `https://www.veidly.com`
+
+== Examples
+
+=== Complete Registration Flow
+
+[source,bash]
+----
+# 1. Register
+REGISTER_RESPONSE=$(curl -s -X POST http://localhost:8080/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "newuser@example.com",
+    "password": "securepass123",
+    "name": "John Doe"
+  }')
+
+# 2. Extract token
+TOKEN=$(echo $REGISTER_RESPONSE | jq -r '.token')
+echo "Token: $TOKEN"
+
+# 3. Check user info
+curl -s http://localhost:8080/api/auth/me \
+  -H "Authorization: Bearer $TOKEN" | jq
+
+# 4. Create an event (may fail if email verification required)
+curl -s -X POST http://localhost:8080/api/events \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "My First Event",
+    "latitude": 52.2297,
+    "longitude": 21.0122,
+    "start_time": "2025-10-20T14:00:00Z",
+    "end_time": "2025-10-20T16:00:00Z",
+    "language": "en"
+  }' | jq
+----
+
+=== Login and Use Token
+
+[source,bash]
+----
+# 1. Login
+LOGIN_RESPONSE=$(curl -s -X POST http://localhost:8080/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "user@example.com",
+    "password": "securepass123"
+  }')
+
+# 2. Extract and save token
+TOKEN=$(echo $LOGIN_RESPONSE | jq -r '.token')
+export TOKEN
+
+# 3. Make authenticated requests
+curl http://localhost:8080/api/events \
+  -H "Authorization: Bearer $TOKEN"
+----
+
+=== Update Profile
+
+[source,bash]
+----
+# Change name
+curl -X PUT http://localhost:8080/api/auth/profile \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Jane Doe"}'
+
+# Change password
+curl -X POST http://localhost:8080/api/auth/change-password \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "current_password": "oldpass",
+    "new_password": "newsecurepass"
+  }'
+----
+
+== JavaScript/TypeScript Examples
+
+=== Using Axios
+
+[source,typescript]
+----
+import axios from 'axios';
+
+const API_URL = 'http://localhost:8080/api';
+
+// Register
+async function register(email: string, password: string, name: string) {
+  const response = await axios.post(`${API_URL}/auth/register`, {
+    email,
+    password,
+    name,
+  });
+
+  // Save token
+  localStorage.setItem('token', response.data.token);
+  localStorage.setItem('user', JSON.stringify(response.data.user));
+
+  return response.data;
+}
+
+// Login
+async function login(email: string, password: string) {
+  const response = await axios.post(`${API_URL}/auth/login`, {
+    email,
+    password,
+  });
+
+  // Save token
+  localStorage.setItem('token', response.data.token);
+  localStorage.setItem('user', JSON.stringify(response.data.user));
+
+  // Set default auth header
+  axios.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`;
+
+  return response.data;
+}
+
+// Logout
+function logout() {
+  localStorage.removeItem('token');
+  localStorage.removeItem('user');
+  delete axios.defaults.headers.common['Authorization'];
+}
+
+// Initialize auth on app load
+function initializeAuth() {
+  const token = localStorage.getItem('token');
+  if (token) {
+    axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+  }
+}
+----
+
+=== Error Handling
+
+[source,typescript]
+----
+import axios, { AxiosError } from 'axios';
+
+async function loginWithErrorHandling(email: string, password: string) {
+  try {
+    const response = await axios.post('/api/auth/login', {
+      email,
+      password,
+    });
+    return { success: true, data: response.data };
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      const axiosError = error as AxiosError<{ error: string }>;
+
+      if (axiosError.response?.status === 401) {
+        return { success: false, error: 'Invalid email or password' };
+      }
+
+      if (axiosError.response?.status === 429) {
+        return { success: false, error: 'Too many attempts. Please try again later.' };
+      }
+
+      return {
+        success: false,
+        error: axiosError.response?.data?.error || 'Login failed'
+      };
+    }
+
+    return { success: false, error: 'Network error' };
+  }
+}
+----
+
+== Next Steps
+
+* xref:api/events.adoc[Events API] - Event management endpoints
+* xref:api/users.adoc[Users API] - User management endpoints
+* xref:features/email-verification.adoc[Email Verification] - Verification feature details
+* xref:features/authentication.adoc[Authentication Feature] - Implementation details
+
+== Additional Resources
+
+* https://jwt.io/[JWT.io] - JWT debugger and documentation
+* https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html[OWASP Authentication Cheat Sheet]
+* xref:api/overview.adoc[API Overview] - General API concepts
+* xref:admin/user-management.adoc[User Management] - Admin user management

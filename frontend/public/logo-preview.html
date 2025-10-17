@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Veidly Logo Preview</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+            padding: 3rem;
+            background: #f8f9fa;
+        }
+
+        h1 {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+
+        .tagline {
+            color: #666;
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 3rem;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 2rem;
+            margin-bottom: 3rem;
+        }
+
+        .card {
+            background: white;
+            border-radius: 20px;
+            padding: 2rem;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        }
+
+        .card.dark {
+            background: #1a1a1a;
+        }
+
+        .card h2 {
+            color: #333;
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .card.dark h2 {
+            color: white;
+        }
+
+        .card p {
+            color: #666;
+            margin-bottom: 1.5rem;
+            line-height: 1.6;
+        }
+
+        .card.dark p {
+            color: #999;
+        }
+
+        .logo-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 200px;
+            border: 2px dashed #e0e0e0;
+            border-radius: 12px;
+            background: #fafafa;
+        }
+
+        .card.dark .logo-container {
+            border-color: #333;
+            background: #0a0a0a;
+        }
+
+        .size-variants {
+            display: flex;
+            gap: 1rem;
+            align-items: flex-end;
+            justify-content: center;
+            margin-top: 1rem;
+        }
+
+        .color-info {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+
+        .color-box {
+            padding: 1.5rem;
+            border-radius: 12px;
+            text-align: center;
+            color: white;
+            font-weight: 700;
+        }
+
+        .color-1 {
+            background: #667eea;
+        }
+
+        .color-2 {
+            background: #764ba2;
+        }
+
+        code {
+            background: #f0f0f0;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+        }
+
+        .card.dark code {
+            background: #2a2a2a;
+            color: #8b9dff;
+        }
+
+        .usage-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .usage-list li {
+            padding: 0.5rem 0;
+            padding-left: 1.5rem;
+            position: relative;
+        }
+
+        .usage-list li:before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: #667eea;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h1>Veidly Logo & Brand Assets</h1>
+    <p class="tagline">Real People, Real Connections</p>
+
+    <div class="grid">
+        <!-- Logo with Text -->
+        <div class="card">
+            <h2>Logo with Text</h2>
+            <p>Primary logo for headers and marketing materials</p>
+            <div class="logo-container">
+                <img src="/logo-with-text.svg" alt="Veidly Logo with Text" style="max-width: 100%; height: auto;">
+            </div>
+            <p style="margin-top: 1rem;"><code>logo-with-text.svg</code> • 400×120px</p>
+            <ul class="usage-list">
+                <li>Website headers</li>
+                <li>Email signatures</li>
+                <li>Landing pages</li>
+                <li>Marketing materials</li>
+            </ul>
+        </div>
+
+        <!-- Full Icon -->
+        <div class="card">
+            <h2>Full Icon (Light Mode)</h2>
+            <p>Detailed icon for app icons and social media</p>
+            <div class="logo-container">
+                <img src="/logo.svg" alt="Veidly Icon" style="width: 150px; height: 150px;">
+            </div>
+            <div class="size-variants">
+                <img src="/logo.svg" style="width: 32px; height: 32px;" title="32px">
+                <img src="/logo.svg" style="width: 64px; height: 64px;" title="64px">
+                <img src="/logo.svg" style="width: 128px; height: 128px;" title="128px">
+            </div>
+            <p style="margin-top: 1rem;"><code>logo.svg</code> • 200×200px</p>
+            <ul class="usage-list">
+                <li>App icons</li>
+                <li>Social media profiles</li>
+                <li>Open Graph images</li>
+            </ul>
+        </div>
+
+        <!-- Favicon -->
+        <div class="card">
+            <h2>Favicon (Simplified)</h2>
+            <p>Optimized for small sizes (16px - 64px)</p>
+            <div class="logo-container">
+                <img src="/favicon.svg" alt="Veidly Favicon" style="width: 120px; height: 120px;">
+            </div>
+            <div class="size-variants">
+                <img src="/favicon.svg" style="width: 16px; height: 16px;" title="16px">
+                <img src="/favicon.svg" style="width: 32px; height: 32px;" title="32px">
+                <img src="/favicon.svg" style="width: 48px; height: 48px;" title="48px">
+                <img src="/favicon.svg" style="width: 64px; height: 64px;" title="64px">
+            </div>
+            <p style="margin-top: 1rem;"><code>favicon.svg</code> • 64×64px</p>
+            <ul class="usage-list">
+                <li>Browser favicon</li>
+                <li>App shortcuts</li>
+                <li>Small UI elements</li>
+            </ul>
+        </div>
+
+        <!-- Dark Mode -->
+        <div class="card dark">
+            <h2>Dark Mode Variant</h2>
+            <p>Lighter gradient for dark backgrounds</p>
+            <div class="logo-container">
+                <img src="/logo-dark.svg" alt="Veidly Dark Mode" style="width: 150px; height: 150px;">
+            </div>
+            <div class="size-variants">
+                <img src="/logo-dark.svg" style="width: 64px; height: 64px;">
+                <img src="/logo-dark.svg" style="width: 96px; height: 96px;">
+                <img src="/logo-dark.svg" style="width: 128px; height: 128px;">
+            </div>
+            <p style="margin-top: 1rem;"><code>logo-dark.svg</code> • 200×200px</p>
+            <ul class="usage-list">
+                <li>Dark theme UIs</li>
+                <li>Dark backgrounds</li>
+                <li>Night mode apps</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- Brand Colors -->
+    <div class="card">
+        <h2>Brand Colors</h2>
+        <div class="color-info">
+            <div class="color-box color-1">
+                <div style="font-size: 2rem; margin-bottom: 0.5rem;">●</div>
+                Primary Purple<br>
+                <code style="background: rgba(255,255,255,0.2); color: white;">#667eea</code>
+            </div>
+            <div class="color-box color-2">
+                <div style="font-size: 2rem; margin-bottom: 0.5rem;">●</div>
+                Secondary Purple<br>
+                <code style="background: rgba(255,255,255,0.2); color: white;">#764ba2</code>
+            </div>
+        </div>
+        <p style="margin-top: 1.5rem; padding: 1rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 8px; text-align: center; font-weight: 600;">
+            Gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%)
+        </p>
+    </div>
+
+    <!-- Design Concept -->
+    <div class="card">
+        <h2>Design Concept</h2>
+        <p><strong>🗺️ Map Pin</strong> - Represents location-based, real-world meetups</p>
+        <p><strong>👥 Two People</strong> - Human connection and face-to-face interaction</p>
+        <p><strong>✨ Connection Spark</strong> - The moment authentic people connect</p>
+        <p style="margin-top: 1.5rem; padding: 1rem; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #667eea;">
+            <strong>Mission:</strong> Fight social media's fake AI content with genuine human connections through real-world events and meetups.
+        </p>
+    </div>
+</body>
+</html>

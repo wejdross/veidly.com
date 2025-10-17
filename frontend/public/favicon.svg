@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="faviconGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#764ba2;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+
+  <!-- Simplified map pin -->
+  <path d="M 32 6 C 20 6 10 16 10 28 C 10 35 15 42 32 56 C 49 42 54 35 54 28 C 54 16 44 6 32 6 Z"
+        fill="url(#faviconGradient)"/>
+
+  <!-- Two dots representing people -->
+  <circle cx="24" cy="26" r="5" fill="white" opacity="0.95"/>
+  <circle cx="40" cy="26" r="5" fill="white" opacity="0.95"/>
+
+  <!-- Connection line -->
+  <line x1="29" y1="26" x2="35" y2="26" stroke="white" stroke-width="2" opacity="0.9" stroke-linecap="round"/>
+</svg>

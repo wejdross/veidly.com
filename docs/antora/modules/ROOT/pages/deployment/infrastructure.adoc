@@ -1,0 +1,714 @@
+= Infrastructure Overview
+:description: Veidly infrastructure architecture and AWS setup
+:keywords: infrastructure, aws, architecture, deployment
+
+This guide provides an overview of Veidly's production infrastructure architecture on AWS.
+
+== Architecture Overview
+
+Veidly uses a single-server architecture optimized for cost-effectiveness and simplicity:
+
+[source]
+----
+                          ┌─────────────────┐
+                          │   Route 53      │
+                          │   veidly.com    │
+                          └────────┬────────┘
+                                   │
+                          ┌────────▼────────┐
+                          │   Elastic IP    │
+                          │  54.x.x.x       │
+                          └────────┬────────┘
+                                   │
+         ┌─────────────────────────┼─────────────────────────┐
+         │                         │                         │
+         │  ┌──────────────────────▼──────────────────────┐  │
+         │  │          EC2 Instance (t3.small)            │  │
+         │  │  ┌──────────────────────────────────────┐   │  │
+         │  │  │          Nginx (Reverse Proxy)       │   │  │
+         │  │  │  • SSL Termination (Let's Encrypt)   │   │  │
+         │  │  │  • Rate Limiting                     │   │  │
+         │  │  │  • Static File Serving               │   │  │
+         │  │  │  • Gzip Compression                  │   │  │
+         │  │  └──────────┬───────────────────────────┘   │  │
+         │  │             │                               │  │
+         │  │  ┌──────────▼───────────────────────────┐   │  │
+         │  │  │   Veidly Backend (Go)                │   │  │
+         │  │  │   Port: 8080                         │   │  │
+         │  │  │   • JWT Authentication               │   │  │
+         │  │  │   • REST API                         │   │  │
+         │  │  │   • Privacy Controls                 │   │  │
+         │  │  └──────────┬───────────────────────────┘   │  │
+         │  │             │                               │  │
+         │  │  ┌──────────▼───────────────────────────┐   │  │
+         │  │  │   SQLite Database                    │   │  │
+         │  │  │   /opt/veidly/data/veidly.db         │   │  │
+         │  │  └──────────────────────────────────────┘   │  │
+         │  │                                              │  │
+         │  │  ┌──────────────────────────────────────┐   │  │
+         │  │  │   React Frontend (Static)            │   │  │
+         │  │  │   /opt/veidly/frontend/              │   │  │
+         │  │  │   • Served by Nginx                  │   │  │
+         │  │  └──────────────────────────────────────┘   │  │
+         │  │                                              │  │
+         │  └──────────────────────────────────────────────┘  │
+         │                                                     │
+         │  ┌──────────────────────────────────────────────┐  │
+         │  │   EBS Volume (20GB, Encrypted)               │  │
+         │  │   /opt/veidly/data                           │  │
+         │  │   • Persistent storage                       │  │
+         │  │   • Lifecycle protection                     │  │
+         │  └──────────────────────────────────────────────┘  │
+         │                                                     │
+         └─────────────────────────────────────────────────────┘
+                                   │
+                    ┌──────────────┼──────────────┐
+                    │              │              │
+         ┌──────────▼─────┐ ┌─────▼──────┐ ┌────▼──────────┐
+         │  CloudWatch    │ │  S3 Bucket │ │   Mailgun     │
+         │  Logs/Metrics  │ │  Backups   │ │  Email API    │
+         └────────────────┘ └────────────┘ └───────────────┘
+----
+
+== Infrastructure Components
+
+=== 1. Route 53 (DNS)
+
+**Purpose**: Domain name management and DNS routing
+
+**Configuration**:
+* A record: `veidly.com` → Elastic IP
+* A record: `www.veidly.com` → Elastic IP
+* TTL: 300 seconds (5 minutes)
+
+**Managed by**: Terraform module `route53`
+
+**Location**: [terraform/modules/route53/main.tf](../../../../../../terraform/modules/route53/main.tf)
+
+=== 2. Elastic IP
+
+**Purpose**: Static public IP address for the application
+
+**Benefits**:
+* IP remains constant across instance restarts
+* Enables quick disaster recovery (reassign to new instance)
+* Simplifies DNS management
+
+**Managed by**: Terraform module `ec2`
+
+**Cost**: Free when attached to running instance
+
+=== 3. EC2 Instance
+
+**Type**: `t3.small` (2 vCPU, 2 GB RAM)
+
+**Operating System**: Ubuntu 22.04 LTS
+
+**Why t3.small?**:
+* Burstable performance for variable traffic
+* Cost-effective ($15/month in us-east-1)
+* Sufficient for small to medium workloads (up to 1000 concurrent users)
+
+**Security**:
+* Security group allows only HTTP (80), HTTPS (443), and SSH (22)
+* SSH restricted to specific IP addresses
+* IMDSv2 required for instance metadata
+* Regular security updates via unattended-upgrades
+
+**Managed by**: Terraform module `ec2`
+
+**Location**: [terraform/modules/ec2/main.tf](../../../../../../terraform/modules/ec2/main.tf)
+
+=== 4. EBS Volume
+
+**Size**: 20 GB
+
+**Type**: gp3 (General Purpose SSD)
+
+**Encryption**: AWS-managed key
+
+**Mount Point**: `/opt/veidly/data`
+
+**Lifecycle Protection**: `prevent_destroy = true`
+
+**Purpose**:
+* Stores SQLite database
+* Stores application logs
+* Stores uploaded files (future)
+
+**Backup Strategy**: Daily snapshots to S3 at 2 AM UTC
+
+**Why separate volume?**:
+* Data persists across instance terminations
+* Easy to resize without affecting instance
+* Can be attached to new instance for disaster recovery
+
+=== 5. Nginx
+
+**Version**: Latest from Ubuntu repository
+
+**Purpose**: Reverse proxy and static file server
+
+**Configuration**: `/etc/nginx/sites-available/veidly`
+
+**Features**:
+* **SSL/TLS**: Let's Encrypt certificates with auto-renewal
+* **Rate Limiting**: 10 requests/second per IP
+* **Gzip Compression**: Reduces bandwidth usage
+* **Security Headers**: HSTS, X-Frame-Options, CSP
+* **Static File Caching**: Browser cache for frontend assets
+
+**Routes**:
+* `/api/*` → Backend (proxy to localhost:8080)
+* `/*` → Frontend static files
+* `/` → index.html (SPA fallback)
+
+**Logs**:
+* Access: `/var/log/nginx/access.log`
+* Errors: `/var/log/nginx/error.log`
+* CloudWatch: `/aws/ec2/veidly-production/nginx-access`
+
+=== 6. Veidly Backend
+
+**Language**: Go 1.21+
+
+**Port**: 8080 (internal only, not exposed externally)
+
+**Runtime**: Systemd service
+
+**Service File**: `/etc/systemd/system/veidly.service`
+
+**Features**:
+* RESTful API
+* JWT authentication
+* SQLite database connection
+* Email sending via Mailgun
+* Privacy filtering
+
+**Security Hardening**:
+* Runs as dedicated `veidly` user (non-root)
+* `NoNewPrivileges=true`
+* `PrivateTmp=true`
+* `ProtectSystem=strict`
+* `ProtectHome=true`
+
+**Logs**:
+* Application: `/opt/veidly/logs/app.log`
+* Errors: `/opt/veidly/logs/error.log`
+* CloudWatch: `/aws/ec2/veidly-production/application`
+
+=== 7. React Frontend
+
+**Framework**: React 18 with TypeScript
+
+**Build Tool**: Vite
+
+**Output**: Static files in `/opt/veidly/frontend/`
+
+**Served by**: Nginx
+
+**Key Files**:
+* `index.html` - SPA entry point
+* `assets/` - JavaScript, CSS, images
+* `manifest.json` - PWA manifest (future)
+
+**Browser Caching**:
+* HTML: No cache
+* Assets (with hash): 1 year cache
+
+=== 8. SQLite Database
+
+**File**: `/opt/veidly/data/veidly.db`
+
+**Size**: Starts ~1 MB, grows with usage
+
+**Backup**: Daily full backup to S3
+
+**Why SQLite?**:
+* **Simplicity**: No separate database server needed
+* **Performance**: Fast for read-heavy workloads
+* **Portability**: Single file, easy to backup/restore
+* **Cost**: No database hosting costs
+
+**Limitations**:
+* Limited concurrent writes (not an issue for this use case)
+* Maximum database size: 281 TB (more than sufficient)
+* Not suitable for 1000+ concurrent writes/sec
+
+**Migration to PostgreSQL** (if needed in future):
+* Estimated threshold: 50,000+ events or 10,000+ concurrent users
+* Terraform module for RDS available in future release
+
+=== 9. S3 Bucket
+
+**Name**: `veidly-backups-production`
+
+**Purpose**: Database backup storage
+
+**Versioning**: Enabled
+
+**Lifecycle Policy**:
+* Delete backups older than 30 days
+* Keep minimum 7 daily backups
+
+**Backup Format**:
+* Filename: `veidly-backup-YYYYMMDD-HHMMSS.db`
+* Compressed: No (SQLite already compact)
+* Encrypted: Server-side encryption enabled
+
+**Daily Backup Job**:
+* Runs at: 2:00 AM UTC (via cron)
+* Script: `/opt/veidly/scripts/backup.sh`
+* Logs: `/opt/veidly/logs/backup.log`
+
+=== 10. CloudWatch
+
+**Log Groups**: `/aws/ec2/veidly-production`
+
+**Log Streams**:
+* `{instance-id}/application` - Backend application logs
+* `{instance-id}/errors` - Backend error logs
+* `{instance-id}/nginx-access` - HTTP access logs
+* `{instance-id}/nginx-error` - Nginx error logs
+
+**Metrics**:
+* CPU utilization
+* Memory usage
+* Disk usage
+* Network in/out
+
+**Retention**: 30 days
+
+**Alarms** (future):
+* CPU > 80% for 5 minutes
+* Disk usage > 90%
+* Error rate > 10/minute
+
+=== 11. IAM Roles
+
+**Role Name**: `veidly-ec2-role`
+
+**Attached Policies**:
+* `CloudWatchAgentServerPolicy` - Metrics and logs
+* Custom S3 policy - Backup bucket access
+
+**Permissions**:
+[source,json]
+----
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:PutObject",
+        "s3:GetObject",
+        "s3:ListBucket"
+      ],
+      "Resource": [
+        "arn:aws:s3:::veidly-backups-production",
+        "arn:aws:s3:::veidly-backups-production/*"
+      ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "logs:CreateLogGroup",
+        "logs:CreateLogStream",
+        "logs:PutLogEvents"
+      ],
+      "Resource": "arn:aws:logs:*:*:*"
+    }
+  ]
+}
+----
+
+**Instance Profile**: Attached to EC2 instance
+
+=== 12. Security Groups
+
+**Name**: `veidly-security-group`
+
+**Inbound Rules**:
+
+[options="header"]
+|===
+|Port |Protocol |Source |Purpose
+
+|22
+|TCP
+|Your IP only
+|SSH access
+
+|80
+|TCP
+|0.0.0.0/0
+|HTTP (redirects to HTTPS)
+
+|443
+|TCP
+|0.0.0.0/0
+|HTTPS
+|===
+
+**Outbound Rules**:
+* All traffic allowed (required for package updates, API calls)
+
+**Best Practices**:
+* SSH restricted to known IPs (change in `terraform.tfvars`)
+* No direct access to port 8080 (backend)
+* Consider using AWS Systems Manager Session Manager instead of SSH
+
+=== 13. Mailgun (External Service)
+
+**Purpose**: Transactional email sending
+
+**Use Cases**:
+* Email verification links
+* Password reset emails
+* Event notifications (future)
+
+**Configuration**:
+* Domain: `mg.veidly.com` (configured via Mailgun DNS)
+* API Key: Stored in environment variable
+* From Address: `noreply@veidly.com`
+
+**Alternative Options**:
+* AWS SES (Amazon Simple Email Service)
+* SendGrid
+* Postmark
+
+== Network Architecture
+
+=== Public Subnet
+
+The EC2 instance is deployed in a public subnet:
+
+* **Internet Gateway**: Direct internet access
+* **Route Table**: 0.0.0.0/0 → Internet Gateway
+* **Public IP**: Elastic IP attached
+
+=== VPC (Future Enhancement)
+
+Currently using default VPC. For production hardening, consider custom VPC:
+
+* **Public Subnet**: Web servers, NAT gateway
+* **Private Subnet**: Database, application servers
+* **NAT Gateway**: Outbound internet for private subnet
+* **VPC Flow Logs**: Network traffic monitoring
+
+== Deployment Architecture
+
+=== Blue-Green Deployment (Current)
+
+Current deployment strategy:
+
+1. **Backup**: Create snapshot of current version
+2. **Deploy**: Update binary and restart service
+3. **Health Check**: Verify application responds
+4. **Rollback**: Automatic rollback on health check failure
+
+=== Zero-Downtime Deployment (Future)
+
+Planned improvements:
+
+1. **Load Balancer**: Application Load Balancer
+2. **Auto Scaling Group**: Multiple instances
+3. **Blue-Green**: New instance, test, switch traffic
+4. **Rolling Updates**: Update instances one at a time
+
+== Scaling Strategy
+
+=== Vertical Scaling
+
+Increase instance size for more resources:
+
+[options="header"]
+|===
+|Instance Type |vCPU |RAM |Cost/Month |Use Case
+
+|t3.micro
+|2
+|1 GB
+|$7
+|Development/Testing
+
+|t3.small
+|2
+|2 GB
+|$15
+|Production (current)
+
+|t3.medium
+|2
+|4 GB
+|$30
+|High traffic (1000+ concurrent users)
+
+|t3.large
+|2
+|8 GB
+|$60
+|Very high traffic (5000+ users)
+|===
+
+To scale up:
+
+[source,bash]
+----
+# Edit terraform.tfvars
+instance_type = "t3.medium"
+
+# Apply changes
+terraform apply
+----
+
+=== Horizontal Scaling (Future)
+
+For very high traffic:
+
+* **Application Load Balancer** distributes traffic
+* **Auto Scaling Group** with 2-10 instances
+* **RDS PostgreSQL** replaces SQLite
+* **ElastiCache Redis** for session storage
+* **S3** for uploaded files
+
+Estimated capacity with horizontal scaling:
+
+* **10,000+ concurrent users**
+* **100,000+ events**
+* **1,000+ requests/second**
+
+== Disaster Recovery
+
+=== Backup Strategy
+
+**Daily Automated Backups**:
+* Database: Full backup to S3 at 2 AM UTC
+* Retention: 30 days
+* Stored in: `s3://veidly-backups-production/`
+
+**Manual Backups** (before major changes):
+[source,bash]
+----
+ssh -i ~/.ssh/veidly-production ubuntu@ELASTIC_IP
+sudo /opt/veidly/scripts/backup.sh manual
+----
+
+=== Recovery Procedures
+
+**Database Recovery**:
+
+[source,bash]
+----
+# List available backups
+aws s3 ls s3://veidly-backups-production/
+
+# Download backup
+aws s3 cp s3://veidly-backups-production/veidly-backup-YYYYMMDD-HHMMSS.db /tmp/
+
+# SSH to server
+ssh -i ~/.ssh/veidly-production ubuntu@ELASTIC_IP
+
+# Stop application
+sudo systemctl stop veidly
+
+# Restore database
+sudo cp /tmp/veidly-backup-YYYYMMDD-HHMMSS.db /opt/veidly/data/veidly.db
+sudo chown veidly:veidly /opt/veidly/data/veidly.db
+
+# Start application
+sudo systemctl start veidly
+----
+
+**Full Instance Recovery**:
+
+1. **Detach EBS volume** from failed instance
+2. **Create new EC2 instance** using Terraform
+3. **Attach existing EBS volume** to new instance
+4. **Reassign Elastic IP** to new instance
+5. **Start application services**
+
+Estimated RTO (Recovery Time Objective): 30 minutes
+Estimated RPO (Recovery Point Objective): 24 hours (daily backups)
+
+=== Monitoring and Alerts
+
+**Current Monitoring**:
+* CloudWatch Logs (manual review)
+* System metrics via CloudWatch agent
+* Application logs on server
+
+**Planned Alerts** (future):
+* SNS topic for critical alerts
+* Email notifications for:
+  - High CPU usage (> 80%)
+  - High disk usage (> 90%)
+  - Application errors (> 10/minute)
+  - Backup failures
+
+== Security Architecture
+
+=== Defense in Depth
+
+**Layer 1 - Network**:
+* Security groups (firewall)
+* SSH key-based authentication only
+* IP-restricted SSH access
+
+**Layer 2 - Application**:
+* Nginx rate limiting (10 req/sec)
+* JWT token authentication
+* Input validation and sanitization
+* SQL injection prevention (parameterized queries)
+
+**Layer 3 - Data**:
+* EBS encryption at rest
+* HTTPS encryption in transit
+* Secure JWT secret (32+ characters)
+* Bcrypt password hashing
+
+**Layer 4 - Monitoring**:
+* CloudWatch logs for audit trail
+* Access logs for security analysis
+* Error logs for anomaly detection
+
+=== SSL/TLS Configuration
+
+**Certificate**: Let's Encrypt (free, auto-renewing)
+
+**Renewal**: Automatic via certbot cron job (twice daily)
+
+**Configuration**:
+* TLS 1.2 and 1.3 only
+* Strong cipher suites
+* HSTS enabled (max-age=31536000)
+* Perfect Forward Secrecy (PFS)
+
+**SSL Labs Rating**: A+ (target)
+
+== Cost Breakdown
+
+Expected monthly costs for production:
+
+[options="header"]
+|===
+|Service |Details |Monthly Cost (USD)
+
+|EC2 Instance
+|t3.small, us-east-1
+|$15.00
+
+|EBS Volume
+|20 GB gp3
+|$2.00
+
+|Elastic IP
+|Attached to running instance
+|$0.00
+
+|S3 Backup Storage
+|~5 GB with lifecycle
+|$0.15
+
+|CloudWatch Logs
+|~1 GB ingestion/month
+|$0.50
+
+|CloudWatch Metrics
+|Included in EC2
+|$0.00
+
+|Data Transfer
+|Assuming 100 GB/month out
+|$9.00
+
+|Route 53
+|Hosted zone + queries
+|$0.50
+
+|**Total**
+|
+|**~$27.15/month**
+|===
+
+**Cost Optimization Tips**:
+* Use Reserved Instances for 40% savings (1-year commitment)
+* Enable S3 Intelligent-Tiering for backups
+* Use CloudWatch Logs Insights sparingly (expensive queries)
+* Monitor and optimize data transfer
+
+== Performance Characteristics
+
+=== Expected Capacity (Current Architecture)
+
+[options="header"]
+|===
+|Metric |Capacity
+
+|Concurrent Users
+|500-1000
+
+|Requests/Second
+|50-100
+
+|Database Size
+|Up to 10 GB efficiently
+
+|Events
+|100,000+
+
+|Users
+|50,000+
+
+|Response Time (p95)
+|< 200ms (API), < 1s (page load)
+|===
+
+=== Bottlenecks and Limits
+
+**CPU**: t3.small can burst to 100% for short periods
+
+**Memory**: 2 GB is sufficient for Go + Nginx + SQLite
+
+**Storage**: 20 GB allows for ~10,000 events with images
+
+**Network**: 5 Gbps burst (t3.small limit)
+
+**Database**: SQLite write throughput ~50 writes/sec
+
+== Future Enhancements
+
+Planned infrastructure improvements:
+
+=== Phase 1 (Q2 2025)
+* CloudWatch alarms and SNS notifications
+* Automated SSL certificate monitoring
+* Weekly database backup verification
+* Custom VPC with private subnets
+
+=== Phase 2 (Q3 2025)
+* Application Load Balancer
+* Auto Scaling Group (2-5 instances)
+* RDS PostgreSQL (replace SQLite)
+* ElastiCache Redis (session storage)
+
+=== Phase 3 (Q4 2025)
+* Multi-region deployment (disaster recovery)
+* CDN (CloudFront) for static assets
+* S3 for file uploads
+* WAF (Web Application Firewall)
+
+== Next Steps
+
+* xref:deployment/terraform.adoc[Terraform Guide] - Deploy the infrastructure
+* xref:deployment/ci-cd.adoc[CI/CD Pipeline] - Automate deployments
+* xref:admin/monitoring.adoc[Monitoring Guide] - Set up monitoring
+* xref:admin/troubleshooting.adoc[Troubleshooting] - Common issues
+
+== Additional Resources
+
+* https://aws.amazon.com/architecture/[AWS Architecture Center]
+* https://aws.amazon.com/well-architected/[AWS Well-Architected Framework]
+* https://calculator.aws/[AWS Pricing Calculator]
+* xref:deployment/ssl.adoc[SSL Configuration Guide]

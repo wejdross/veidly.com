@@ -1,0 +1,222 @@
+# Veidly - Real People, Real Connections
+
+A web application built for people overwhelmed by social media's fake AI content and aggressive algorithms. Veidly helps you discover and create real-world meetups with authentic people in your area.
+
+## Tech Stack
+
+### Backend
+- **Go** with **Gin** framework
+- **SQLite** database
+- RESTful API with CORS support
+
+### Frontend
+- **React** with **TypeScript**
+- **Vite** for fast development
+- **React Leaflet** for interactive maps
+- **Axios** for API communication
+
+## Features
+
+- **Modern, Vibrant UI** designed for young people (16-40)
+  - Animated gradient backgrounds
+  - Glassmorphism effects
+  - Smooth animations and transitions
+  - Bold typography and colors
+- **Beautiful landing page** targeting social media-fatigued users
+- **Interactive map** showing real-time events with custom markers
+- **Place Search** - Search for venues by name (powered by OpenStreetMap)
+- **Event creation** with comprehensive preferences:
+  - Gender restrictions (any/male/female/non-binary)
+  - Age range filtering
+  - Smoking/alcohol/drugs preferences
+  - Maximum participants limit
+  - Contact information
+  - Location search or click-on-map
+- **Flexible datetime support** - Multiple format handling
+- **Verbose logging** with emoji indicators for debugging
+- **Full CRUD API** for event management
+- **Responsive design** for mobile and desktop
+
+## Prerequisites
+
+- Go 1.21 or higher
+- Node.js 18+ and npm
+- SQLite3 (included with most systems)
+
+## Installation & Setup
+
+### 1. Clone the repository
+
+```bash
+cd veidly.com
+```
+
+### 2. Install Backend Dependencies
+
+```bash
+go mod download
+```
+
+### 3. Install Frontend Dependencies
+
+```bash
+cd frontend
+npm install
+```
+
+## Running the Application
+
+### Option 1: Run Backend and Frontend Separately
+
+#### Terminal 1 - Start the Go backend:
+
+```bash
+# From project root
+go run main.go
+```
+
+The backend will start on `http://localhost:8080`
+
+#### Terminal 2 - Start the React frontend:
+
+```bash
+# From project root
+cd frontend
+npm run dev
+```
+
+The frontend will start on `http://localhost:3000`
+
+### Option 2: Use the convenience scripts
+
+#### On Unix/Linux/macOS:
+
+```bash
+# Make scripts executable (first time only)
+chmod +x run.sh
+
+# Run both servers
+./run.sh
+```
+
+#### On Windows:
+
+```cmd
+run.bat
+```
+
+## API Endpoints
+
+### Events
+
+- `GET /api/events` - Get all upcoming events
+- `GET /api/events/:id` - Get a specific event
+- `POST /api/events` - Create a new event
+- `PUT /api/events/:id` - Update an event
+- `DELETE /api/events/:id` - Delete an event
+
+### Places
+
+- `GET /api/search/places?q=<query>` - Search for places by name (e.g., "Starbucks Warsaw")
+
+### Event Schema
+
+```json
+{
+  "id": 1,
+  "title": "Coffee & Chat",
+  "description": "Casual coffee meetup for friendly conversation",
+  "latitude": 52.2297,
+  "longitude": 21.0122,
+  "start_time": "2025-10-11T15:00:00Z",
+  "end_time": "2025-10-11T17:00:00Z",
+  "creator_name": "John",
+  "creator_contact": "john@example.com",
+  "max_participants": 5,
+  "gender_restriction": "any",
+  "age_min": 18,
+  "age_max": 35,
+  "smoking_allowed": false,
+  "alcohol_allowed": true,
+  "drugs_allowed": false,
+  "created_at": "2025-10-10T10:00:00Z"
+}
+```
+
+## Building for Production
+
+### Build the frontend:
+
+```bash
+cd frontend
+npm run build
+```
+
+### Build the backend:
+
+```bash
+go build -o veidly
+```
+
+## Project Structure
+
+```
+veidly.com/
+├── main.go                 # Go backend server
+├── go.mod                  # Go dependencies
+├── veidly.db              # SQLite database (created on first run)
+├── README.md              # This file
+├── run.sh                 # Unix/Linux/macOS run script
+├── run.bat                # Windows run script
+└── frontend/
+    ├── src/
+    │   ├── components/
+    │   │   ├── LandingPage.tsx    # Landing page component
+    │   │   ├── LandingPage.css
+    │   │   ├── MapView.tsx        # Interactive map component
+    │   │   ├── MapView.css
+    │   │   ├── EventForm.tsx      # Event creation form
+    │   │   └── EventForm.css
+    │   ├── App.tsx               # Main app router
+    │   ├── api.ts                # API client
+    │   ├── types.ts              # TypeScript types
+    │   └── main.tsx              # Entry point
+    ├── package.json
+    ├── vite.config.ts
+    └── index.html
+```
+
+## Usage
+
+1. Visit `http://localhost:3000` to see the landing page
+2. Click "Find Events" or "Explore Events Near You" to see the map
+3. Grant location permissions for automatic centering (optional)
+4. Click anywhere on the map to create a new event at that location
+5. Fill out the event form with all your preferences
+6. Submit to create the event - it will appear as a marker on the map
+7. Click markers to see event details in a popup
+
+## Development Notes
+
+- The backend includes CORS support for both Vite dev server (port 3000) and production
+- SQLite database is automatically created on first run
+- The map uses OpenStreetMap tiles (no API key required)
+- Events are filtered to show only upcoming events
+- Location coordinates can be manually edited in the form or set by clicking the map
+
+## Future Enhancements
+
+- User authentication and profiles
+- Event RSVP system
+- Event search and filtering
+- Real-time notifications
+- Event photos and ratings
+- Mobile app
+
+## License
+
+This project is open source and available for personal and commercial use.
+
+## Support
+
+For issues or questions, please open an issue on the GitHub repository.

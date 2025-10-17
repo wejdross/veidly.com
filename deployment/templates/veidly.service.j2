@@ -1,0 +1,39 @@
+[Unit]
+Description=Veidly Backend Service
+After=network.target
+
+[Service]
+Type=simple
+User={{ app_user }}
+WorkingDirectory={{ app_dir }}/backend
+ExecStartPre=/usr/bin/sqlite3 {{ db_dir }}/veidly.db "VACUUM;"
+ExecStart={{ app_dir }}/backend/veidly-backend
+Restart=always
+RestartSec=10
+
+# Environment variables
+Environment="DATABASE_PATH={{ db_dir }}/veidly.db"
+Environment="PORT=8080"
+Environment="JWT_SECRET={{ jwt_secret }}"
+Environment="MAILGUN_DOMAIN={{ mailgun_domain }}"
+Environment="MAILGUN_API_KEY={{ mailgun_api_key }}"
+Environment="MAILGUN_FROM_EMAIL={{ mailgun_from_email }}"
+Environment="BASE_URL=https://{{ domain }}"
+Environment="ENVIRONMENT=production"
+Environment="CORS_ORIGINS=https://{{ domain }}"
+Environment="ADMIN_EMAIL={{ admin_email }}"
+Environment="ADMIN_PASSWORD={{ admin_password }}"
+
+# Logging
+StandardOutput=append:{{ log_dir }}/backend.log
+StandardError=append:{{ log_dir }}/backend.error.log
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths={{ db_dir }} {{ log_dir }}
+
+[Install]
+WantedBy=multi-user.target

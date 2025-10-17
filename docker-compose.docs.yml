@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  antora:
+    image: antora/antora:latest
+    container_name: veidly-docs
+    volumes:
+      - .:/antora
+    working_dir: /antora
+    command: antora-playbook.yml
+    ports:
+      - "8000:8000"
+
+  docs-server:
+    image: nginx:alpine
+    container_name: veidly-docs-server
+    volumes:
+      - ./build/site:/usr/share/nginx/html:ro
+    ports:
+      - "8000:80"
+    depends_on:
+      - antora

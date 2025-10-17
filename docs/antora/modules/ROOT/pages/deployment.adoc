@@ -1,0 +1,258 @@
+= Deployment Guide
+
+== Production Deployment on Hetzner VPS
+
+This guide covers deploying Veidly to a Hetzner VPS running Ubuntu using Ansible.
+
+== Prerequisites
+
+* Hetzner VPS running Ubuntu 22.04 LTS
+* Domain name pointed to VPS IP
+* Ansible installed on local machine
+* GitHub repository with tagged releases
+
+== Automated Deployment with Ansible
+
+The included Ansible playbook handles:
+
+* ✅ Installing dependencies (Go, Node.js, nginx)
+* ✅ Setting up SSL certificates with Let's Encrypt
+* ✅ Database backup before deployment
+* ✅ Fetching specific GitHub release tag
+* ✅ Building frontend and backend
+* ✅ Configuring nginx reverse proxy
+* ✅ Setting up systemd service
+* ✅ Log rotation and preservation
+
+=== Quick Deploy
+
+[source,bash]
+----
+# 1. Configure inventory
+cp deployment/inventory.example deployment/inventory
+# Edit deployment/inventory with your server details
+
+# 2. Run playbook
+ansible-playbook -i deployment/inventory deployment/deploy.yml \
+  --extra-vars "release_tag=v1.0.0 domain=veidly.com"
+----
+
+== Manual Deployment Steps
+
+=== 1. Server Setup
+
+[source,bash]
+----
+# Update system
+sudo apt update && sudo apt upgrade -y
+
+# Install dependencies
+sudo apt install -y golang-go nodejs npm nginx certbot python3-certbot-nginx sqlite3
+
+# Create application user
+sudo useradd -m -s /bin/bash veidly
+----
+
+=== 2. Application Setup
+
+[source,bash]
+----
+# Clone repository
+sudo -u veidly git clone https://github.com/yourusername/veidly.com /home/veidly/app
+cd /home/veidly/app
+
+# Checkout release tag
+sudo -u veidly git checkout v1.0.0
+
+# Build backend
+cd backend
+sudo -u veidly go build -o veidly-backend .
+
+# Build frontend
+cd ../frontend
+sudo -u veidly npm install
+sudo -u veidly npm run build
+----
+
+=== 3. Database Setup
+
+[source,bash]
+----
+# Create database directory
+sudo mkdir -p /var/lib/veidly
+sudo chown veidly:veidly /var/lib/veidly
+
+# Initialize database (will auto-migrate on first run)
+sudo -u veidly /home/veidly/app/backend/veidly-backend &
+# Stop after initialization
+----
+
+=== 4. Nginx Configuration
+
+[source,nginx]
+----
+# /etc/nginx/sites-available/veidly
+server {
+    listen 80;
+    server_name veidly.com www.veidly.com;
+
+    # Frontend static files
+    location / {
+        root /home/veidly/app/frontend/dist;
+        try_files $uri $uri/ /index.html;
+    }
+
+    # Backend API
+    location /api/ {
+        proxy_pass http://localhost:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+----
+
+[source,bash]
+----
+# Enable site
+sudo ln -s /etc/nginx/sites-available/veidly /etc/nginx/sites-enabled/
+sudo nginx -t
+sudo systemctl reload nginx
+
+# Get SSL certificate
+sudo certbot --nginx -d veidly.com -d www.veidly.com
+----
+
+=== 5. Systemd Service
+
+[source,ini]
+----
+# /etc/systemd/system/veidly.service
+[Unit]
+Description=Veidly Backend Service
+After=network.target
+
+[Service]
+Type=simple
+User=veidly
+WorkingDirectory=/home/veidly/app/backend
+ExecStartPre=/usr/bin/sqlite3 /var/lib/veidly/veidly.db "VACUUM;"
+ExecStart=/home/veidly/app/backend/veidly-backend
+Restart=always
+RestartSec=10
+Environment="DATABASE_PATH=/var/lib/veidly/veidly.db"
+Environment="PORT=8080"
+Environment="JWT_SECRET=your-secret-here"
+Environment="SMTP_HOST=smtp.example.com"
+Environment="SMTP_PORT=587"
+Environment="SMTP_USER=noreply@veidly.com"
+Environment="SMTP_PASS=your-password"
+
+# Logging
+StandardOutput=append:/var/log/veidly/backend.log
+StandardError=append:/var/log/veidly/backend.error.log
+
+[Install]
+WantedBy=multi-user.target
+----
+
+[source,bash]
+----
+# Create log directory
+sudo mkdir -p /var/log/veidly
+sudo chown veidly:veidly /var/log/veidly
+
+# Enable and start service
+sudo systemctl daemon-reload
+sudo systemctl enable veidly
+sudo systemctl start veidly
+----
+
+== Database Backup
+
+=== Automated Backup Script
+
+[source,bash]
+----
+#!/bin/bash
+# /home/veidly/backup-db.sh
+
+BACKUP_DIR="/home/veidly/backups"
+DB_PATH="/var/lib/veidly/veidly.db"
+TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+BACKUP_FILE="$BACKUP_DIR/veidly_$TIMESTAMP.db"
+
+mkdir -p $BACKUP_DIR
+
+# Backup database
+sqlite3 $DB_PATH ".backup '$BACKUP_FILE'"
+
+# Compress
+gzip $BACKUP_FILE
+
+# Keep only last 30 backups
+ls -t $BACKUP_DIR/veidly_*.db.gz | tail -n +31 | xargs rm -f
+
+echo "Backup completed: $BACKUP_FILE.gz"
+----
+
+=== Cron Setup
+
+[source,crontab]
+----
+# Backup database daily at 2 AM
+0 2 * * * /home/veidly/backup-db.sh
+
+# Cleanup old logs weekly
+0 3 * * 0 find /var/log/veidly -name "*.log" -mtime +30 -delete
+----
+
+== Monitoring
+
+=== Log Locations
+
+* Backend logs: `/var/log/veidly/backend.log`
+* Error logs: `/var/log/veidly/backend.error.log`
+* Nginx access: `/var/log/nginx/access.log`
+* Nginx error: `/var/log/nginx/error.log`
+
+=== Health Checks
+
+[source,bash]
+----
+# Check backend status
+sudo systemctl status veidly
+
+# Check logs
+sudo journalctl -u veidly -f
+
+# Check nginx status
+sudo systemctl status nginx
+
+# Test API
+curl http://localhost:8080/api/events
+----
+
+== Rollback Procedure
+
+[source,bash]
+----
+# 1. Restore database backup
+sudo -u veidly sqlite3 /var/lib/veidly/veidly.db < /home/veidly/backups/veidly_TIMESTAMP.db
+
+# 2. Checkout previous release
+cd /home/veidly/app
+sudo -u veidly git checkout v0.9.0
+
+# 3. Rebuild
+cd backend && sudo -u veidly go build -o veidly-backend .
+cd ../frontend && sudo -u veidly npm run build
+
+# 4. Restart service
+sudo systemctl restart veidly
+----

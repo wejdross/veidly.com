@@ -1,0 +1,782 @@
+= Installation Guide
+:description: Detailed installation instructions for Veidly
+:keywords: installation, setup, development, environment
+
+This guide provides detailed installation instructions for setting up Veidly for local development or production deployment.
+
+== System Requirements
+
+=== Minimum Requirements
+
+[options="header"]
+|===
+|Component |Minimum |Recommended
+
+|**CPU**
+|1 core
+|2+ cores
+
+|**RAM**
+|512 MB
+|2 GB
+
+|**Disk Space**
+|500 MB
+|5 GB (with logs and backups)
+
+|**OS**
+|Linux, macOS, Windows
+|Ubuntu 22.04 LTS / macOS 13+
+|===
+
+=== Software Requirements
+
+[options="header"]
+|===
+|Software |Version |Purpose
+
+|**Go**
+|1.21 or higher
+|Backend compilation
+
+|**Node.js**
+|18.x or higher
+|Frontend build tools
+
+|**npm**
+|9.x or higher
+|Package management
+
+|**SQLite**
+|3.x
+|Database (included with Go)
+
+|**Git**
+|2.x
+|Version control
+|===
+
+== Installation Methods
+
+Choose the installation method that best fits your needs:
+
+* **xref:installation.adoc#local-development[Local Development]** - For developing and testing
+* **xref:installation.adoc#docker[Docker]** - Containerized deployment (future)
+* **xref:installation.adoc#production[Production]** - AWS deployment with Terraform
+
+== Local Development Installation
+
+=== Step 1: Install Prerequisites
+
+==== macOS
+
+Using Homebrew:
+
+[source,bash]
+----
+# Install Homebrew if not already installed
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+# Install Go
+brew install go
+
+# Install Node.js
+brew install node
+
+# Verify installations
+go version    # Should show 1.21 or higher
+node --version  # Should show v18.x or higher
+npm --version   # Should show 9.x or higher
+----
+
+==== Ubuntu/Debian
+
+[source,bash]
+----
+# Update package list
+sudo apt update
+
+# Install Go
+wget https://go.dev/dl/go1.21.5.linux-amd64.tar.gz
+sudo rm -rf /usr/local/go && sudo tar -C /usr/local -xzf go1.21.5.linux-amd64.tar.gz
+echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.bashrc
+source ~/.bashrc
+
+# Install Node.js (using NodeSource)
+curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+sudo apt install -y nodejs
+
+# Verify installations
+go version
+node --version
+npm --version
+----
+
+==== Windows
+
+1. **Install Go**:
+   - Download from https://go.dev/dl/
+   - Run the installer
+   - Add Go to PATH (installer does this automatically)
+
+2. **Install Node.js**:
+   - Download from https://nodejs.org/
+   - Run the installer
+   - Ensure "Add to PATH" is checked
+
+3. **Verify in PowerShell**:
+[source,powershell]
+----
+go version
+node --version
+npm --version
+----
+
+=== Step 2: Clone the Repository
+
+[source,bash]
+----
+# Clone the repository
+git clone https://github.com/yourusername/veidly.com.git
+cd veidly.com
+
+# Verify directory structure
+ls -la
+----
+
+You should see:
+
+----
+├── frontend/          # React frontend
+├── terraform/         # Infrastructure as code
+├── migrations/        # Database migrations
+├── docs/             # Documentation
+├── *.go              # Go backend files
+├── go.mod            # Go dependencies
+└── go.sum            # Go dependency checksums
+----
+
+=== Step 3: Configure Environment Variables
+
+Create a `.env` file in the project root:
+
+[source,bash]
+----
+cp .env.example .env
+----
+
+If `.env.example` doesn't exist, create `.env` manually:
+
+[source,bash]
+----
+# Server Configuration
+PORT=8080
+DB_PATH=/tmp/veidly.db
+
+# JWT Secret (generate a secure random string)
+JWT_SECRET=your-secure-jwt-secret-min-32-chars-change-this
+
+# Mailgun Configuration (optional for local dev)
+MAILGUN_DOMAIN=
+MAILGUN_API_KEY=
+MAILGUN_FROM_EMAIL=
+
+# Frontend URL
+FRONTEND_URL=http://localhost:3000
+
+# Environment
+ENVIRONMENT=development
+----
+
+==== Generate Secure JWT Secret
+
+[source,bash]
+----
+# On macOS/Linux
+openssl rand -base64 32
+
+# On Windows (PowerShell)
+[Convert]::ToBase64String((1..32 | ForEach-Object { Get-Random -Maximum 256 }))
+----
+
+Copy the output and paste it as `JWT_SECRET` value.
+
+=== Step 4: Install Backend Dependencies
+
+[source,bash]
+----
+# Download Go modules
+go mod download
+
+# Verify dependencies
+go mod verify
+
+# Tidy up (optional)
+go mod tidy
+----
+
+Expected modules include:
+
+* `github.com/gin-gonic/gin` - Web framework
+* `github.com/golang-jwt/jwt/v5` - JWT authentication
+* `github.com/mattn/go-sqlite3` - SQLite driver
+* `golang.org/x/crypto/bcrypt` - Password hashing
+
+=== Step 5: Install Frontend Dependencies
+
+[source,bash]
+----
+cd frontend
+
+# Install npm packages
+npm install
+
+# Return to project root
+cd ..
+----
+
+Expected packages include:
+
+* React 18.x
+* TypeScript
+* Vite (build tool)
+* Axios (HTTP client)
+* Leaflet (maps)
+* React Router
+
+=== Step 6: Initialize Database
+
+The database is automatically initialized on first run:
+
+[source,bash]
+----
+# Start the backend (this will create the database)
+go run .
+----
+
+You should see output like:
+
+----
+Database initialized successfully
+Running migrations...
+Migration 001_initial_schema.sql applied
+Migration 002_add_privacy_fields.sql applied
+Server starting on port 8080...
+----
+
+Press `Ctrl+C` to stop after verification.
+
+=== Step 7: Seed Test Data (Optional)
+
+Populate the database with sample events and users:
+
+[source,bash]
+----
+# Make the script executable
+chmod +x seed_test_data.sh
+
+# Run the seed script
+./seed_test_data.sh
+----
+
+This creates:
+
+* 3 test users (1 admin, 2 regular users)
+* 10 sample events across Warsaw
+* Event participants
+* Various privacy settings
+
+Test user credentials:
+
+[options="header"]
+|===
+|Email |Password |Role |Verified
+
+|admin@test.com
+|test123
+|Admin
+|✅ Yes
+
+|test1@test.com
+|test123
+|User
+|✅ Yes
+
+|test2@test.com
+|test123
+|User
+|✅ Yes
+|===
+
+=== Step 8: Start Development Servers
+
+Open two terminal windows:
+
+**Terminal 1 - Backend:**
+
+[source,bash]
+----
+# From project root
+go run .
+----
+
+Output:
+----
+Server starting on port 8080...
+----
+
+**Terminal 2 - Frontend:**
+
+[source,bash]
+----
+# From project root
+cd frontend
+npm run dev
+----
+
+Output:
+----
+VITE v5.x.x  ready in xxx ms
+
+➜  Local:   http://localhost:3000/
+➜  Network: use --host to expose
+----
+
+=== Step 9: Verify Installation
+
+Open your browser and navigate to:
+
+* **Frontend**: http://localhost:3000
+* **Backend Health Check**: http://localhost:8080/api/health
+
+You should see:
+
+* The Veidly map interface
+* Login/Register buttons
+* Sample events on the map (if seeded)
+
+Try logging in with `admin@test.com` / `test123`.
+
+== Production Installation
+
+For production deployment, see:
+
+* xref:deployment/terraform.adoc[Terraform Deployment Guide] - AWS infrastructure setup
+* xref:deployment/ci-cd.adoc[CI/CD Pipeline Guide] - Automated deployments
+* xref:deployment/infrastructure.adoc[Infrastructure Overview] - Architecture details
+
+== Docker Installation (Future)
+
+Docker support is planned for a future release.
+
+Planned Docker setup:
+
+[source,bash]
+----
+# Build and run with Docker Compose
+docker-compose up -d
+
+# Access application
+open http://localhost:3000
+----
+
+== Configuration
+
+=== Environment Variables Reference
+
+[options="header"]
+|===
+|Variable |Required |Default |Description
+
+|`PORT`
+|No
+|8080
+|HTTP server port
+
+|`DB_PATH`
+|No
+|/tmp/veidly.db
+|SQLite database file path
+
+|`JWT_SECRET`
+|Yes
+|None
+|Secret key for JWT signing (min 32 chars)
+
+|`MAILGUN_DOMAIN`
+|No
+|Empty
+|Mailgun domain for email sending
+
+|`MAILGUN_API_KEY`
+|No
+|Empty
+|Mailgun API key
+
+|`MAILGUN_FROM_EMAIL`
+|No
+|Empty
+|Email address for outgoing mail
+
+|`FRONTEND_URL`
+|No
+|http://localhost:3000
+|Frontend URL for CORS and email links
+
+|`ENVIRONMENT`
+|No
+|development
+|Environment name (development/production)
+|===
+
+=== Frontend Environment Variables
+
+Create `frontend/.env`:
+
+[source,bash]
+----
+# API Base URL
+VITE_API_URL=http://localhost:8080
+
+# Map Configuration (optional)
+VITE_MAP_DEFAULT_LAT=52.2297
+VITE_MAP_DEFAULT_LNG=21.0122
+VITE_MAP_DEFAULT_ZOOM=13
+----
+
+=== Database Configuration
+
+The SQLite database is configured via `DB_PATH`. For production:
+
+[source,bash]
+----
+# Use a persistent location
+DB_PATH=/opt/veidly/data/veidly.db
+----
+
+Ensure the directory exists and has proper permissions:
+
+[source,bash]
+----
+sudo mkdir -p /opt/veidly/data
+sudo chown veidly:veidly /opt/veidly/data
+sudo chmod 750 /opt/veidly/data
+----
+
+== Troubleshooting
+
+=== Backend Won't Start
+
+**Issue**: `database is locked`
+
+**Solution**: Stop existing processes:
+[source,bash]
+----
+# Find process using port 8080
+lsof -i :8080
+
+# Kill the process
+kill -9 <PID>
+----
+
+**Issue**: `cannot find package`
+
+**Solution**: Download dependencies:
+[source,bash]
+----
+go mod download
+go mod verify
+----
+
+**Issue**: `cgo: C compiler "gcc" not found`
+
+**Solution**: Install build tools:
+
+macOS:
+[source,bash]
+----
+xcode-select --install
+----
+
+Ubuntu:
+[source,bash]
+----
+sudo apt install build-essential
+----
+
+=== Frontend Won't Start
+
+**Issue**: `EADDRINUSE: address already in use`
+
+**Solution**: Kill process on port 3000:
+[source,bash]
+----
+# macOS/Linux
+lsof -ti:3000 | xargs kill -9
+
+# Windows
+netstat -ano | findstr :3000
+taskkill /PID <PID> /F
+----
+
+**Issue**: `Module not found` errors
+
+**Solution**: Reinstall dependencies:
+[source,bash]
+----
+cd frontend
+rm -rf node_modules package-lock.json
+npm install
+----
+
+**Issue**: `npm ERR! peer dependency` warnings
+
+**Solution**: These are usually safe to ignore. If you want to resolve:
+[source,bash]
+----
+npm install --legacy-peer-deps
+----
+
+=== Database Issues
+
+**Issue**: `no such table: users`
+
+**Solution**: Delete database and restart (migrations will rerun):
+[source,bash]
+----
+rm /tmp/veidly.db
+go run .
+----
+
+**Issue**: Permission denied on database file
+
+**Solution**: Fix permissions:
+[source,bash]
+----
+chmod 664 /tmp/veidly.db
+# Or use a different path
+export DB_PATH=./veidly.db
+----
+
+=== Email Verification Not Working
+
+**Issue**: Emails not being sent
+
+**Solution**:
+
+1. **Check Mailgun configuration** in `.env`:
+[source,bash]
+----
+MAILGUN_DOMAIN=mg.yourdomain.com
+MAILGUN_API_KEY=key-xxxxxxxxxx
+MAILGUN_FROM_EMAIL=noreply@yourdomain.com
+----
+
+2. **Test Mailgun credentials**:
+[source,bash]
+----
+curl -s --user "api:$MAILGUN_API_KEY" \
+  https://api.mailgun.net/v3/$MAILGUN_DOMAIN/messages \
+  -F from="$MAILGUN_FROM_EMAIL" \
+  -F to="you@example.com" \
+  -F subject="Test" \
+  -F text="Test email"
+----
+
+3. **Manual verification** (development only):
+[source,bash]
+----
+sqlite3 /tmp/veidly.db "UPDATE users SET email_verified = 1 WHERE email = 'user@example.com';"
+----
+
+=== Port Conflicts
+
+If default ports are in use, change them:
+
+**Backend** - In `.env`:
+[source,bash]
+----
+PORT=8081
+----
+
+**Frontend** - In `frontend/vite.config.ts`:
+[source,typescript]
+----
+export default defineConfig({
+  server: {
+    port: 3001,
+  },
+})
+----
+
+Update `VITE_API_URL` in `frontend/.env` accordingly.
+
+== Development Tools
+
+=== Recommended IDE Setup
+
+**Visual Studio Code**:
+
+Extensions:
+* Go (by Go Team)
+* ESLint
+* Prettier
+* TypeScript Vue Plugin (Volar)
+
+Settings (`.vscode/settings.json`):
+[source,json]
+----
+{
+  "go.toolsManagement.autoUpdate": true,
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": true
+  }
+}
+----
+
+**GoLand / WebStorm**:
+
+* Better Go debugging
+* Integrated test runner
+* Database tools
+
+=== Database Management
+
+**SQLite Browser**:
+
+[source,bash]
+----
+# macOS
+brew install --cask db-browser-for-sqlite
+
+# Ubuntu
+sudo apt install sqlitebrowser
+
+# Or use command line
+sqlite3 /tmp/veidly.db
+----
+
+**Useful queries**:
+
+[source,sql]
+----
+-- View all users
+SELECT id, email, name, is_admin, email_verified FROM users;
+
+-- View all events
+SELECT id, title, slug, start_time, max_participants, current_participants FROM events;
+
+-- View event participants
+SELECT e.title, u.email
+FROM event_participants ep
+JOIN events e ON ep.event_id = e.id
+JOIN users u ON ep.user_id = u.id;
+----
+
+=== API Testing
+
+**cURL examples**:
+
+[source,bash]
+----
+# Health check
+curl http://localhost:8080/api/health
+
+# Register user
+curl -X POST http://localhost:8080/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"newuser@test.com","password":"test123","name":"New User"}'
+
+# Login
+curl -X POST http://localhost:8080/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@test.com","password":"test123"}'
+
+# Get events (with auth)
+curl http://localhost:8080/api/events \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+----
+
+**Postman/Insomnia**:
+
+Import the API collection (future enhancement).
+
+=== Hot Reload
+
+**Backend** - Use `air` for hot reload:
+
+[source,bash]
+----
+# Install air
+go install github.com/cosmtrek/air@latest
+
+# Run with hot reload
+air
+----
+
+**Frontend** - Vite has built-in hot reload:
+
+[source,bash]
+----
+npm run dev
+# File changes automatically reload
+----
+
+== Updating Veidly
+
+To update to the latest version:
+
+[source,bash]
+----
+# Pull latest changes
+git pull origin main
+
+# Update backend dependencies
+go mod download
+go mod tidy
+
+# Update frontend dependencies
+cd frontend
+npm install
+cd ..
+
+# Run migrations (automatic on restart)
+go run .
+----
+
+== Uninstallation
+
+To completely remove Veidly:
+
+[source,bash]
+----
+# Remove database
+rm /tmp/veidly.db
+
+# Remove application files
+cd ..
+rm -rf veidly.com
+
+# Remove Go cache (optional)
+go clean -cache -modcache
+
+# Remove npm cache (optional)
+npm cache clean --force
+----
+
+== Next Steps
+
+Now that Veidly is installed:
+
+* xref:quick-start.adoc[Quick Start Guide] - Get up and running quickly
+* xref:development/setup.adoc[Development Setup] - Configure your development environment
+* xref:configuration.adoc[Configuration Guide] - Advanced configuration options
+* xref:development/testing.adoc[Testing Guide] - Run and write tests
+
+== Additional Resources
+
+* https://golang.org/doc/install[Go Installation Guide]
+* https://nodejs.org/en/download/[Node.js Installation Guide]
+* https://git-scm.com/book/en/v2/Getting-Started-Installing-Git[Git Installation Guide]
+* xref:admin/troubleshooting.adoc[Troubleshooting Guide]

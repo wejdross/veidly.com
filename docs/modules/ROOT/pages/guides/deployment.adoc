@@ -1,0 +1,514 @@
+= Deployment Guide
+:description: Production deployment checklist and procedures for Veidly
+:keywords: deployment, production, checklist, security
+
+Complete checklist and procedures for deploying Veidly to production.
+
+== Pre-Deployment Checklist
+
+=== 1. Environment Variables
+
+[%interactive]
+* [ ] `JWT_SECRET` is set to a strong random value (minimum 32 characters)
+* [ ] `ADMIN_PASSWORD` is set to a secure password
+* [ ] `CORS_ORIGINS` is set to production domains only (no wildcards)
+* [ ] `ENVIRONMENT` is set to "production"
+* [ ] `PORT` is configured (default: 8080)
+
+.Generate Secure Secrets
+[source,bash]
+----
+# Use the Makefile to generate secrets
+make generate-secrets
+
+# Or manually generate JWT secret
+openssl rand -base64 32
+----
+
+WARNING: Never use default passwords like "admin123" or "change-this-secure-password-for-admin" in production!
+
+=== 2. TLS/HTTPS Configuration
+
+[%interactive]
+* [ ] `USE_TLS` is set to "true"
+* [ ] `TLS_CERT` points to valid SSL certificate
+* [ ] `TLS_KEY` points to valid SSL private key
+* [ ] Certificate is valid and not expired
+* [ ] Certificate chain is complete
+
+IMPORTANT: The application will refuse to start in production without HTTPS enabled.
+
+=== 3. Frontend Configuration
+
+[%interactive]
+* [ ] `VITE_API_URL` in `frontend/.env` points to production API
+* [ ] Frontend is built: `cd frontend && npm run build`
+* [ ] Frontend build exists in `frontend/dist/`
+
+.Example Production Config
+[source,bash]
+----
+# frontend/.env
+VITE_API_URL=https://api.veidly.com
+----
+
+NOTE: Do not include `/api` suffix - it's added automatically by the config.
+
+=== 4. Security
+
+[%interactive]
+* [ ] All default passwords changed
+* [ ] Database file permissions are restricted (`chmod 600 veidly.db`)
+* [ ] Server is running behind a reverse proxy (nginx/caddy)
+* [ ] Firewall rules are configured
+* [ ] Rate limiting is enabled (default: yes)
+* [ ] Request size limits are in place (default: 5MB)
+
+=== 5. Database
+
+[%interactive]
+* [ ] Database backup system is configured
+* [ ] Database is using WAL mode (automatic)
+* [ ] Indexes are created (automatic)
+* [ ] Connection pooling is configured (automatic)
+
+=== 6. Monitoring
+
+[%interactive]
+* [ ] Health check endpoint is accessible: `/health`
+* [ ] Logging is configured and rotated
+* [ ] Error tracking is set up (optional: Sentry, etc.)
+* [ ] Uptime monitoring is configured
+
+=== 7. Testing
+
+[%interactive]
+* [ ] All tests pass: `make test`
+* [ ] Frontend tests pass: `cd frontend && npm test`
+* [ ] API endpoints are accessible
+* [ ] Authentication flow works
+* [ ] Event creation works
+* [ ] Rate limiting is functional
+
+=== 8. Performance
+
+[%interactive]
+* [ ] Database queries are indexed
+* [ ] Static files are served efficiently
+* [ ] Gzip compression is enabled (via reverse proxy)
+* [ ] CDN is configured (if applicable)
+
+=== 9. Backup & Recovery
+
+[%interactive]
+* [ ] Database backup script is in place
+* [ ] Backup restoration procedure is tested
+* [ ] Backup retention policy is defined
+
+=== 10. Documentation
+
+[%interactive]
+* [ ] README.md is updated with production deployment steps
+* [ ] API documentation is current
+* [ ] Environment variables are documented
+
+== Deployment Steps
+
+=== 1. Build Backend
+
+[source,bash]
+----
+make build-backend
+# This creates the 'veidly' binary
+----
+
+=== 2. Build Frontend
+
+[source,bash]
+----
+cd frontend
+npm run build
+# This creates frontend/dist/ with optimized assets
+----
+
+=== 3. Prepare Production Environment
+
+[source,bash]
+----
+# Create production directory
+mkdir -p /var/www/veidly
+cd /var/www/veidly
+
+# Copy backend binary
+cp /path/to/veidly .
+
+# Copy frontend build
+cp -r /path/to/frontend/dist ./frontend-dist
+
+# Copy database
+cp /path/to/veidly.db .
+chmod 600 veidly.db
+
+# Create .env file
+cat > .env << 'EOF'
+PORT=8080
+JWT_SECRET=<your-generated-secret>
+ADMIN_PASSWORD=<your-secure-password>
+CORS_ORIGINS=https://veidly.com
+ENVIRONMENT=production
+USE_TLS=true
+TLS_CERT=/etc/letsencrypt/live/veidly.com/fullchain.pem
+TLS_KEY=/etc/letsencrypt/live/veidly.com/privkey.pem
+EOF
+----
+
+=== 4. Configure Systemd Service
+
+Create `/etc/systemd/system/veidly.service`:
+
+[source,ini]
+----
+[Unit]
+Description=Veidly Backend Server
+After=network.target
+
+[Service]
+Type=simple
+User=veidly
+WorkingDirectory=/var/www/veidly
+ExecStart=/var/www/veidly/veidly
+Restart=always
+RestartSec=10
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/www/veidly
+
+[Install]
+WantedBy=multi-user.target
+----
+
+=== 5. Start Service
+
+[source,bash]
+----
+# Reload systemd
+sudo systemctl daemon-reload
+
+# Enable service to start on boot
+sudo systemctl enable veidly
+
+# Start service
+sudo systemctl start veidly
+
+# Check status
+sudo systemctl status veidly
+
+# View logs
+sudo journalctl -u veidly -f
+----
+
+=== 6. Configure Reverse Proxy
+
+==== Nginx Configuration
+
+Create `/etc/nginx/sites-available/veidly`:
+
+[source,nginx]
+----
+server {
+    listen 80;
+    server_name veidly.com www.veidly.com;
+    return 301 https://$server_name$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name veidly.com www.veidly.com;
+
+    # SSL Configuration
+    ssl_certificate /etc/letsencrypt/live/veidly.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/veidly.com/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+
+    # Frontend static files
+    location / {
+        root /var/www/veidly/frontend-dist;
+        try_files $uri $uri/ /index.html;
+
+        # Cache static assets
+        location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+            expires 1y;
+            add_header Cache-Control "public, immutable";
+        }
+    }
+
+    # API proxy
+    location /api/ {
+        proxy_pass https://localhost:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Health check
+    location /health {
+        proxy_pass https://localhost:8080;
+        access_log off;
+    }
+
+    # Security headers
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+}
+----
+
+Enable the site:
+
+[source,bash]
+----
+sudo ln -s /etc/nginx/sites-available/veidly /etc/nginx/sites-enabled/
+sudo nginx -t
+sudo systemctl reload nginx
+----
+
+==== Caddy Configuration
+
+Create `/etc/caddy/Caddyfile`:
+
+[source,caddy]
+----
+veidly.com {
+    # Frontend
+    root * /var/www/veidly/frontend-dist
+    encode gzip
+    file_server
+
+    # API proxy
+    reverse_proxy /api/* localhost:8080 {
+        header_up X-Real-IP {remote_host}
+    }
+
+    # Health check
+    reverse_proxy /health localhost:8080
+
+    # SPA fallback
+    try_files {path} /index.html
+}
+----
+
+=== 7. Database Backup
+
+Create `/usr/local/bin/backup-veidly-db.sh`:
+
+[source,bash]
+----
+#!/bin/bash
+BACKUP_DIR="/var/backups/veidly"
+DB_PATH="/var/www/veidly/veidly.db"
+TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+
+mkdir -p $BACKUP_DIR
+sqlite3 $DB_PATH ".backup $BACKUP_DIR/veidly_$TIMESTAMP.db"
+
+# Keep only last 30 days
+find $BACKUP_DIR -name "veidly_*.db" -mtime +30 -delete
+----
+
+Add to crontab:
+
+[source,bash]
+----
+# Backup database daily at 2 AM
+0 2 * * * /usr/local/bin/backup-veidly-db.sh
+----
+
+== Post-Deployment Verification
+
+=== 1. Health Check
+
+[source,bash]
+----
+curl https://veidly.com/health
+# Should return: {"status":"ok"}
+----
+
+=== 2. Admin Login
+
+. Navigate to `https://veidly.com`
+. Click "Login"
+. Use credentials:
+** Email: `admin@veidly.com`
+** Password: Your `ADMIN_PASSWORD` from `.env`
+. Verify admin panel access
+
+=== 3. Create Test Event
+
+. Log in as admin
+. Create a test event
+. Verify it appears on the map
+. Share the event URL and verify public access
+
+=== 4. Monitor Logs
+
+[source,bash]
+----
+# View application logs
+sudo journalctl -u veidly -f
+
+# View nginx logs
+sudo tail -f /var/log/nginx/access.log
+sudo tail -f /var/log/nginx/error.log
+----
+
+== Rollback Procedure
+
+If deployment fails:
+
+[source,bash]
+----
+# Stop new version
+sudo systemctl stop veidly
+
+# Restore previous binary
+cp /var/www/veidly/veidly.backup /var/www/veidly/veidly
+
+# Restore previous database
+cp /var/backups/veidly/veidly_<timestamp>.db /var/www/veidly/veidly.db
+
+# Restart service
+sudo systemctl start veidly
+
+# Verify health
+curl https://veidly.com/health
+----
+
+== Troubleshooting
+
+=== Service Won't Start
+
+[source,bash]
+----
+# Check logs
+sudo journalctl -u veidly -n 100
+
+# Common issues:
+# - Missing JWT_SECRET
+# - Missing TLS certificates
+# - Port already in use
+# - Wrong file permissions
+----
+
+=== Database Errors
+
+[source,bash]
+----
+# Check database permissions
+ls -la /var/www/veidly/veidly.db
+# Should be: -rw------- veidly veidly
+
+# Fix permissions
+sudo chown veidly:veidly /var/www/veidly/veidly.db
+sudo chmod 600 /var/www/veidly/veidly.db
+----
+
+=== HTTPS Not Working
+
+[source,bash]
+----
+# Verify certificates
+sudo certbot certificates
+
+# Renew certificates
+sudo certbot renew
+
+# Check nginx config
+sudo nginx -t
+
+# Reload nginx
+sudo systemctl reload nginx
+----
+
+== Security Considerations
+
+=== Environment Variables
+
+IMPORTANT: Never commit `.env` files to version control!
+
+=== Database Security
+
+* Keep `veidly.db` with permissions `600` (read/write for owner only)
+* Regular backups to separate storage
+* Consider encryption at rest for sensitive data
+
+=== Rate Limiting
+
+The application includes built-in rate limiting:
+
+* 100 requests per 15 minutes per IP
+* Protects against brute force attacks
+* Configurable in code if needed
+
+=== CORS Configuration
+
+Set `CORS_ORIGINS` to specific domains only:
+
+[source,bash]
+----
+# Good
+CORS_ORIGINS=https://veidly.com,https://www.veidly.com
+
+# Bad (too permissive)
+CORS_ORIGINS=*
+----
+
+== Monitoring Best Practices
+
+=== Uptime Monitoring
+
+Consider using:
+
+* UptimeRobot
+* Pingdom
+* StatusCake
+
+Monitor these endpoints:
+
+* `https://veidly.com/health`
+* `https://veidly.com` (main page)
+
+=== Log Management
+
+Consider centralized logging:
+
+* journald (included with systemd)
+* Loki + Grafana
+* ELK Stack
+* CloudWatch (AWS)
+
+=== Metrics
+
+Key metrics to monitor:
+
+* Response times
+* Error rates
+* Database size
+* Active users
+* Event creation rate
+
+== See Also
+
+* xref:guides/makefile.adoc[Makefile Reference]
+* xref:guides/quickstart.adoc[Quick Start Guide]
+* xref:architecture/overview.adoc[Architecture Overview]
