@@ -1,4 +1,14 @@
 ---
+- name: Ensure npm cache directory exists with correct ownership
+  file:
+    path: /home/{{ app_user }}/.npm
+    state: directory
+    owner: "{{ app_user }}"
+    group: "{{ app_user }}"
+    mode: '0755'
+    recurse: yes
+  ignore_errors: yes
+
 - name: Install npm dependencies
   npm:
     path: "{{ app_dir }}/frontend"

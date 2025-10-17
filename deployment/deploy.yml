@@ -8,10 +8,15 @@
     db_dir: /var/lib/veidly
     backup_dir: /home/{{ app_user }}/backups
     log_dir: /var/log/veidly
-    release_tag: "{{ release_tag | default('main') }}"
-    domain: "{{ domain | default('veidly.com') }}"
     
   pre_tasks:
+    - name: Create application user (if doesn't exist)
+      user:
+        name: "{{ app_user }}"
+        shell: /bin/bash
+        home: /home/{{ app_user }}
+        create_home: yes
+
     - name: Backup database before deployment
       block:
         - name: Create backup directory
@@ -21,7 +26,7 @@
             owner: "{{ app_user }}"
             group: "{{ app_user }}"
             mode: '0755'
-            
+
         - name: Backup database
           shell: |
             TIMESTAMP=$(date +%Y%m%d_%H%M%S)

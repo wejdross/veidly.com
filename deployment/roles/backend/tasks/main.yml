@@ -1,4 +1,20 @@
 ---
+- name: Create Go workspace directory
+  file:
+    path: /home/{{ app_user }}/go
+    state: directory
+    owner: "{{ app_user }}"
+    group: "{{ app_user }}"
+    mode: '0755'
+
+- name: Create Go cache directory
+  file:
+    path: /home/{{ app_user }}/.cache
+    state: directory
+    owner: "{{ app_user }}"
+    group: "{{ app_user }}"
+    mode: '0755'
+
 - name: Clone/update repository
   git:
     repo: https://github.com/{{ github_repo | default('yourusername/veidly.com') }}
@@ -10,11 +26,15 @@
 - name: Build backend
   shell: |
     export PATH=$PATH:/usr/local/go/bin
+    export GOPATH=/home/{{ app_user }}/go
+    export GOCACHE=/home/{{ app_user }}/.cache/go-build
     cd {{ app_dir }}/backend
     go build -o veidly-backend .
   become_user: "{{ app_user }}"
   environment:
     GOPATH: /home/{{ app_user }}/go
+    GOCACHE: /home/{{ app_user }}/.cache/go-build
+    HOME: /home/{{ app_user }}
 
 - name: Create systemd service
   template:

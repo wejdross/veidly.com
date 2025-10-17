@@ -1,4 +1,12 @@
 ---
+- name: Enable Ubuntu Universe repository
+  apt_repository:
+    repo: "{{ item }}"
+    state: present
+  loop:
+    - "deb http://archive.ubuntu.com/ubuntu {{ ansible_distribution_release }} universe"
+    - "deb http://archive.ubuntu.com/ubuntu {{ ansible_distribution_release }}-updates universe"
+
 - name: Update apt cache
   apt:
     update_cache: yes
@@ -17,17 +25,21 @@
 
 - name: Install Go
   block:
-    - name: Download Go
+    - name: Remove old Go installation
+      file:
+        path: /usr/local/go
+        state: absent
+
+    - name: Download Go 1.23.2
       get_url:
-        url: https://go.dev/dl/go1.21.5.linux-amd64.tar.gz
-        dest: /tmp/go1.21.5.linux-amd64.tar.gz
+        url: https://go.dev/dl/go1.23.2.linux-amd64.tar.gz
+        dest: /tmp/go1.23.2.linux-amd64.tar.gz
 
     - name: Extract Go
       unarchive:
-        src: /tmp/go1.21.5.linux-amd64.tar.gz
+        src: /tmp/go1.23.2.linux-amd64.tar.gz
         dest: /usr/local
         remote_src: yes
-        creates: /usr/local/go/bin/go
 
     - name: Set Go environment
       lineinfile:

@@ -199,14 +199,6 @@ function MapView() {
     setShowForm(true)
   }
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text).then(() => {
-      showToast('Contact info copied to clipboard!', 'success')
-    }).catch(() => {
-      showToast('Failed to copy. Please copy manually.', 'error')
-    })
-  }
-
   const handleJoinEvent = async (eventId: number) => {
     if (!isAuthenticated) {
       setShowAuth(true)
