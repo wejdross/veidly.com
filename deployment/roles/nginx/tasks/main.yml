@@ -43,7 +43,6 @@
       command: >
         certbot --nginx
         -d {{ domain }}
-        -d www.{{ domain }}
         --non-interactive
         --agree-tos
         --email {{ admin_email }}
