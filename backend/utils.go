@@ -4,14 +4,18 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"html"
 	"regexp"
 	"strings"
 )
 
 // generateSlug creates a URL-friendly slug from a title
 func generateSlug(title string) string {
+	// Decode HTML entities first (e.g., &#39; -> ')
+	slug := html.UnescapeString(title)
+
 	// Convert to lowercase
-	slug := strings.ToLower(title)
+	slug = strings.ToLower(slug)
 
 	// Replace spaces and special characters with hyphens
 	reg := regexp.MustCompile(`[^a-z0-9]+`)

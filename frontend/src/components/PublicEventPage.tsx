@@ -155,7 +155,7 @@ export default function PublicEventPage() {
 
       <div className="event-details-container">
         <div className="event-header">
-          <h1 dangerouslySetInnerHTML={{ __html: sanitizeText(event.title) }} />
+          <h1>{event.title}</h1>
           <span className="event-category">
             {CATEGORIES[event.category as keyof typeof CATEGORIES] || event.category}
           </span>
@@ -176,10 +176,18 @@ export default function PublicEventPage() {
               </p>
             )}
 
+            <h3>Where</h3>
+            <a
+              href={`https://www.google.com/maps/search/?api=1&query=${event.latitude},${event.longitude}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-maps"
+            >
+              📍 Open in Google Maps
+            </a>
+
             <h3>Organizer</h3>
-            <p>
-              <span dangerouslySetInnerHTML={{ __html: sanitizeText(event.creator_name) }} />
-            </p>
+            <p>{event.creator_name}</p>
 
             {event.event_languages && (
               <>
@@ -218,7 +226,7 @@ export default function PublicEventPage() {
               <MapContainer
                 center={[event.latitude, event.longitude]}
                 zoom={13}
-                style={{ height: '400px', width: '100%' }}
+                style={{ height: '300px', width: '100%' }}
               >
                 <TileLayer
                   url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -229,14 +237,6 @@ export default function PublicEventPage() {
                 </Marker>
               </MapContainer>
             </div>
-            <a
-              href={`https://www.google.com/maps/search/?api=1&query=${event.latitude},${event.longitude}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn-maps"
-            >
-              📍 Open in Google Maps
-            </a>
           </div>
         </div>
 
@@ -533,7 +533,7 @@ export default function PublicEventPage() {
 
         .btn-maps {
           display: inline-block;
-          margin-top: 1rem;
+          margin-bottom: 1rem;
           padding: 0.75rem 1.5rem;
           background: linear-gradient(135deg, #34a853 0%, #0f9d58 100%);
           color: white;
@@ -544,8 +544,6 @@ export default function PublicEventPage() {
           font-weight: 600;
           text-decoration: none;
           transition: all 0.3s;
-          width: 100%;
-          text-align: center;
           box-shadow: 0 2px 8px rgba(52, 168, 83, 0.3);
         }
 
@@ -554,10 +552,28 @@ export default function PublicEventPage() {
           box-shadow: 0 6px 20px rgba(52, 168, 83, 0.4);
         }
 
+        .event-info-section .btn-maps {
+          display: block;
+          text-align: center;
+          margin-top: 0.5rem;
+        }
+
         .map-container {
           border-radius: 8px;
           overflow: hidden;
           box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+          background: white;
+        }
+
+        .event-map-section {
+          display: flex;
+          flex-direction: column;
+          align-self: start;
+        }
+
+        .event-map-section h3 {
+          margin-top: 0;
+          margin-bottom: 0.75rem;
         }
       `}</style>
     </div>

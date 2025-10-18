@@ -4,6 +4,7 @@ import { Icon } from 'leaflet'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../AuthContext'
 import { api } from '../api'
+import { API_BASE_URL } from '../config'
 import { Event } from '../types'
 import { getLanguagesDisplay } from '../languages'
 import { sanitizeText } from '../utils/sanitize'
@@ -418,7 +419,7 @@ function MapView() {
                           className="download-ics-button"
                           onClick={(e) => {
                             e.stopPropagation()
-                            window.open(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/public/events/${event.slug}/ics`, '_blank')
+                            window.open(`${API_BASE_URL}/public/events/${event.slug}/ics`, '_blank')
                           }}
                           title="Download ICS calendar file"
                         >
