@@ -186,15 +186,6 @@ function LandingPage() {
             </p>
             <div className="funding-buttons">
               <a
-                href="https://patronite.pl/veidly"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="funding-button patronite"
-              >
-                <span className="funding-icon">💜</span>
-                <span>Support on Patronite</span>
-              </a>
-              <a
                 href="https://buycoffee.to/veidly"
                 target="_blank"
                 rel="noopener noreferrer"
@@ -240,9 +231,6 @@ function LandingPage() {
           </div>
           <div className="footer-section">
             <h4>Support</h4>
-            <a href="https://patronite.pl/veidly" target="_blank" rel="noopener noreferrer">
-              Patronite
-            </a>
             <a href="https://buycoffee.to/veidly" target="_blank" rel="noopener noreferrer">
               Buy Coffee
             </a>

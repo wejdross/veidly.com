@@ -442,11 +442,6 @@
   box-shadow: 0 8px 25px rgba(0, 0, 0, 0.25);
 }
 
-.funding-button.patronite {
-  background: linear-gradient(135deg, #9b59b6 0%, #8e44ad 100%);
-  color: white;
-}
-
 .funding-button.buycoffee {
   background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);
   color: white;
