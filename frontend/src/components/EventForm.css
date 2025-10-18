@@ -488,8 +488,15 @@
   }
 
   .form-row {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr !important;
     gap: 1rem;
+    display: grid;
+  }
+
+  /* Ensure datetime inputs stack vertically */
+  .form-row .form-group {
+    width: 100%;
+    grid-column: 1;
   }
 
   .form-actions {

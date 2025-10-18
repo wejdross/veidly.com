@@ -8,6 +8,7 @@ import PublicEventPage from './components/PublicEventPage'
 import VerifyEmailPage from './components/VerifyEmailPage'
 import ForgotPasswordPage from './components/ForgotPasswordPage'
 import ResetPasswordPage from './components/ResetPasswordPage'
+import VersionNotification from './components/VersionNotification'
 import './App.css'
 
 function ProtectedRoute({ children, adminOnly = false }: { children: React.ReactNode; adminOnly?: boolean }) {
@@ -27,6 +28,7 @@ function ProtectedRoute({ children, adminOnly = false }: { children: React.React
 function App() {
   return (
     <Router>
+      <VersionNotification />
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/map" element={<MapView />} />

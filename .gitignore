@@ -18,6 +18,7 @@ veidly_backup_*.db
 frontend/node_modules/
 frontend/dist/
 frontend/.vite/
+frontend/public/version.json
 
 # IDE
 .vscode/

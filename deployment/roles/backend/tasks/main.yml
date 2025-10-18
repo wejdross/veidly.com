@@ -74,3 +74,9 @@
     enabled: yes
     state: started
     daemon_reload: yes
+
+- name: Restart service after deployment
+  systemd:
+    name: veidly
+    state: restarted
+  when: ansible_check_mode == false
