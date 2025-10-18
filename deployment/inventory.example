@@ -1,14 +1,14 @@
 [veidly_servers]
-veidly-prod ansible_host=YOUR_SERVER_IP ansible_user=root
+veidly-prod ansible_host=157.180.34.185 ansible_user=root
 
 [veidly_servers:vars]
 ansible_python_interpreter=/usr/bin/python3
 domain=veidly.com
-release_tag=v1.0.0
+release_tag=v0.3.0
 github_repo=wejdross/veidly.com
-jwt_secret=CHANGE_ME_TO_RANDOM_STRING
+jwt_secret=CHANGE_ME_TO_RANDOM_STRING-asdasdasdasd1234er3ewqd
 mailgun_domain=mg.veidly.com
 mailgun_api_key=YOUR_MAILGUN_API_KEY
 mailgun_from_email=noreply@veidly.com
 admin_email=admin@veidly.com
-admin_password=CHANGE_ME_SECURE_ADMIN_PASSWORD
+admin_password=chujdupakurwacipapierdoleniejebacfrajerow
