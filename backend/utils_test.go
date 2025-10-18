@@ -53,6 +53,16 @@ func TestGenerateSlug(t *testing.T) {
 			title:       "Pre-event Meeting",
 			expectedPrefix: "pre-event-meeting-",
 		},
+		{
+			name:        "Title with HTML entities",
+			title:       "Mom&#39;s Book Club",
+			expectedPrefix: "mom-s-book-club-",
+		},
+		{
+			name:        "Title with various HTML entities",
+			title:       "Coffee &amp; Chat &#8211; Let&#39;s Meet!",
+			expectedPrefix: "coffee-chat-let-s-meet-",
+		},
 	}
 
 	for _, tt := range tests {
