@@ -224,10 +224,10 @@ function LandingPage() {
           </div>
           <div className="footer-section">
             <h4>Community</h4>
-            <a href="https://github.com/anthropics/veidly" target="_blank" rel="noopener noreferrer">
+            <a href="https://github.com/wejdross/veidly.com" target="_blank" rel="noopener noreferrer">
               GitHub
             </a>
-            <a href="mailto:hello@veidly.com">Contact</a>
+            <a href="https://www.linkedin.com/in/%C5%82ukasz-widera-130096142/">Contact</a>
           </div>
           <div className="footer-section">
             <h4>Support</h4>
