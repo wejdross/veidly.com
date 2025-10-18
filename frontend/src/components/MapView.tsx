@@ -415,16 +415,18 @@ function MapView() {
                         >
                           🔗 Share
                         </button>
-                        <button
-                          className="download-ics-button"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            window.open(`${API_BASE_URL}/public/events/${event.slug}/ics`, '_blank')
-                          }}
-                          title="Download ICS calendar file"
-                        >
-                          📅 Add to Calendar
-                        </button>
+                        {(event.is_participant || user?.id === event.user_id) && (
+                          <button
+                            className="download-ics-button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              window.open(`${API_BASE_URL}/public/events/${event.slug}/ics`, '_blank')
+                            }}
+                            title="Download ICS calendar file"
+                          >
+                            📅 Add to Calendar
+                          </button>
+                        )}
                       </>
                     )}
                   </div>
