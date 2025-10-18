@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet'
+import { Icon } from 'leaflet'
 import { Event, CATEGORIES } from '../types'
 import { useAuth } from '../AuthContext'
 import { API_BASE_URL } from '../config'
@@ -10,6 +11,21 @@ import { sanitizeText } from '../utils/sanitize'
 import ToastContainer, { showToast } from './ToastContainer'
 import EventComments from './EventComments'
 import 'leaflet/dist/leaflet.css'
+
+// Fix for default marker icon in React-Leaflet
+import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png'
+import markerIcon from 'leaflet/dist/images/marker-icon.png'
+import markerShadow from 'leaflet/dist/images/marker-shadow.png'
+
+const defaultIcon = new Icon({
+  iconUrl: markerIcon,
+  iconRetinaUrl: markerIcon2x,
+  shadowUrl: markerShadow,
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41],
+})
 
 export default function PublicEventPage() {
   const { slug } = useParams<{ slug: string }>()
@@ -208,11 +224,19 @@ export default function PublicEventPage() {
                   url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                   attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                 />
-                <Marker position={[event.latitude, event.longitude]}>
+                <Marker position={[event.latitude, event.longitude]} icon={defaultIcon}>
                   <Popup>{event.title}</Popup>
                 </Marker>
               </MapContainer>
             </div>
+            <a
+              href={`https://www.google.com/maps/search/?api=1&query=${event.latitude},${event.longitude}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-maps"
+            >
+              📍 Open in Google Maps
+            </a>
           </div>
         </div>
 
@@ -505,6 +529,35 @@ export default function PublicEventPage() {
         .btn-calendar:hover {
           transform: translateY(-2px);
           box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
+        }
+
+        .btn-maps {
+          display: inline-block;
+          margin-top: 1rem;
+          padding: 0.75rem 1.5rem;
+          background: linear-gradient(135deg, #34a853 0%, #0f9d58 100%);
+          color: white;
+          border: none;
+          border-radius: 8px;
+          cursor: pointer;
+          font-size: 1rem;
+          font-weight: 600;
+          text-decoration: none;
+          transition: all 0.3s;
+          width: 100%;
+          text-align: center;
+          box-shadow: 0 2px 8px rgba(52, 168, 83, 0.3);
+        }
+
+        .btn-maps:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 6px 20px rgba(52, 168, 83, 0.4);
+        }
+
+        .map-container {
+          border-radius: 8px;
+          overflow: hidden;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
         }
       `}</style>
     </div>
