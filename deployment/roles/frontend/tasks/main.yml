@@ -21,6 +21,7 @@
   become_user: "{{ app_user }}"
   environment:
     NODE_ENV: production
+    VITE_API_URL: ""  # Use relative URLs in production (nginx proxies /api/* to backend)
 
 - name: Ensure dist directory permissions
   file:
