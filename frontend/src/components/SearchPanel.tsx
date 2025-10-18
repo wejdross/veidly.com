@@ -10,7 +10,6 @@ interface SearchFilters {
   languages: string
   smoking: string
   alcohol: string
-  drugs: string
   gender: string
   age_min: string
   age_max: string
@@ -31,7 +30,6 @@ function SearchPanel({ onSearch, onClear, initialFilters }: SearchPanelProps) {
     languages: initialFilters?.languages || '',
     smoking: initialFilters?.smoking || '',
     alcohol: initialFilters?.alcohol || '',
-    drugs: initialFilters?.drugs || '',
     gender: initialFilters?.gender || 'any',
     age_min: initialFilters?.age_min || '',
     age_max: initialFilters?.age_max || '',
@@ -73,7 +71,6 @@ function SearchPanel({ onSearch, onClear, initialFilters }: SearchPanelProps) {
       languages: '',
       smoking: '',
       alcohol: '',
-      drugs: '',
       gender: 'any',
       age_min: '',
       age_max: '',
@@ -183,15 +180,6 @@ function SearchPanel({ onSearch, onClear, initialFilters }: SearchPanelProps) {
                 <div className="form-group">
                   <label htmlFor="alcohol">Alcohol</label>
                   <select id="alcohol" name="alcohol" value={filters.alcohol} onChange={handleChange}>
-                    <option value="">Any</option>
-                    <option value="true">Allowed</option>
-                    <option value="false">Not Allowed</option>
-                  </select>
-                </div>
-
-                <div className="form-group">
-                  <label htmlFor="drugs">Drugs</label>
-                  <select id="drugs" name="drugs" value={filters.drugs} onChange={handleChange}>
                     <option value="">Any</option>
                     <option value="true">Allowed</option>
                     <option value="false">Not Allowed</option>

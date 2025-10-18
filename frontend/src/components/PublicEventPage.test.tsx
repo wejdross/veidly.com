@@ -203,7 +203,7 @@ describe('PublicEventPage Component', () => {
       })
     })
 
-    it('should navigate to / when "Sign In" is clicked', async () => {
+    it('should open auth modal when "Sign In" is clicked', async () => {
       vi.mocked(api.api.getPublicEvent).mockResolvedValue(mockEvent)
 
       render(<PublicEventPage />)
@@ -212,8 +212,15 @@ describe('PublicEventPage Component', () => {
         expect(screen.getByRole('button', { name: /^sign in$/i })).toBeInTheDocument()
       })
 
+      // Auth modal should not be visible initially
+      expect(screen.queryByRole('button', { name: /^login$/i })).not.toBeInTheDocument()
+
       fireEvent.click(screen.getByRole('button', { name: /^sign in$/i }))
-      expect(mockNavigate).toHaveBeenCalledWith('/?returnTo=/event/test-event-abc123')
+
+      // Auth modal should now be visible (look for Login button in modal)
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /^login$/i })).toBeInTheDocument()
+      })
     })
 
     it('should show CTA to sign in when not authenticated', async () => {
@@ -227,7 +234,7 @@ describe('PublicEventPage Component', () => {
       })
     })
 
-    it('should navigate with returnTo parameter when "Sign In to Join" is clicked', async () => {
+    it('should open auth modal when "Sign In to Join" is clicked', async () => {
       vi.mocked(api.api.getPublicEvent).mockResolvedValue(mockEvent)
 
       render(<PublicEventPage />)
@@ -236,10 +243,16 @@ describe('PublicEventPage Component', () => {
         expect(screen.getByRole('button', { name: /sign in to join/i })).toBeInTheDocument()
       })
 
+      // Auth modal should not be visible initially
+      expect(screen.queryByRole('button', { name: /^login$/i })).not.toBeInTheDocument()
+
       const signInButton = screen.getByRole('button', { name: /sign in to join/i })
       fireEvent.click(signInButton)
 
-      expect(mockNavigate).toHaveBeenCalledWith('/?returnTo=/event/test-event-abc123')
+      // Auth modal should now be visible (look for Login button in modal)
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /^login$/i })).toBeInTheDocument()
+      })
     })
   })
 

@@ -10,6 +10,7 @@ import { getLanguagesDisplay } from '../languages'
 import { sanitizeText } from '../utils/sanitize'
 import ToastContainer, { showToast } from './ToastContainer'
 import EventComments from './EventComments'
+import AuthModal from './AuthModal'
 import 'leaflet/dist/leaflet.css'
 
 // Fix for default marker icon in React-Leaflet
@@ -34,6 +35,7 @@ export default function PublicEventPage() {
   const [event, setEvent] = useState<Event | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [showAuthModal, setShowAuthModal] = useState(false)
 
   useEffect(() => {
     const fetchEvent = async () => {
@@ -57,6 +59,17 @@ export default function PublicEventPage() {
       fetchEvent()
     }
   }, [slug])
+
+  // Close auth modal and refetch event when user becomes authenticated
+  useEffect(() => {
+    if (isAuthenticated && showAuthModal) {
+      setShowAuthModal(false)
+      // Refetch event to update participant status
+      if (slug) {
+        api.getPublicEvent(slug).then(setEvent).catch(console.error)
+      }
+    }
+  }, [isAuthenticated, showAuthModal, slug])
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString('en-US', {
@@ -145,7 +158,7 @@ export default function PublicEventPage() {
               <button onClick={() => navigate('/map')} className="btn-secondary">
                 Browse Events
               </button>
-              <button onClick={() => navigate(`/?returnTo=/event/${slug}`)} className="btn-primary">
+              <button onClick={() => setShowAuthModal(true)} className="btn-primary">
                 Sign In
               </button>
             </>
@@ -243,7 +256,7 @@ export default function PublicEventPage() {
         {!isAuthenticated ? (
           <div className="join-cta">
             <p>Want to join this event?</p>
-            <button onClick={() => navigate(`/?returnTo=/event/${slug}`)} className="btn-primary btn-large">
+            <button onClick={() => setShowAuthModal(true)} className="btn-primary btn-large">
               Sign In to Join
             </button>
           </div>
@@ -286,6 +299,11 @@ export default function PublicEventPage() {
 
         <ToastContainer />
       </div>
+
+      {/* Auth Modal */}
+      {showAuthModal && (
+        <AuthModal onClose={() => setShowAuthModal(false)} />
+      )}
 
       <style>{`
         .public-event-page {
