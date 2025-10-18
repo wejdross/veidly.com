@@ -32,14 +32,22 @@
             TIMESTAMP=$(date +%Y%m%d_%H%M%S)
             BACKUP_FILE="{{ backup_dir }}/veidly_pre_deploy_$TIMESTAMP.db"
             if [ -f "{{ db_dir }}/veidly.db" ]; then
-              sqlite3 {{ db_dir }}/veidly.db ".backup '$BACKUP_FILE'"
-              gzip $BACKUP_FILE
+              sqlite3 {{ db_dir }}/veidly.db ".backup '$BACKUP_FILE'" && \
+              gzip "$BACKUP_FILE" && \
               echo "Backup created: $BACKUP_FILE.gz"
+            else
+              echo "No database found at {{ db_dir }}/veidly.db - skipping backup"
             fi
           args:
             executable: /bin/bash
-          become_user: "{{ app_user }}"
           when: ansible_check_mode == false
+          register: backup_result
+          failed_when: false
+
+        - name: Display backup result
+          debug:
+            var: backup_result.stdout_lines
+          when: backup_result is defined
 
   roles:
     - common

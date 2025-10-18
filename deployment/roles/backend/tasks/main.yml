@@ -21,6 +21,7 @@
     dest: "{{ app_dir }}"
     version: "{{ release_tag }}"
     force: yes
+    update: yes
   become_user: "{{ app_user }}"
 
 - name: Build backend
