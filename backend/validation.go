@@ -185,10 +185,5 @@ func ValidateProfileUpdate(req *ProfileUpdateRequest) error {
 		req.Bio = html.EscapeString(req.Bio)
 	}
 
-	// Default contact method validation (basic)
-	if req.Threema != "" {
-		req.Threema = html.EscapeString(req.Threema)
-	}
-
 	return nil
 }

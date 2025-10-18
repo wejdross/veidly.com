@@ -34,10 +34,10 @@ func TestGetPublicEvent(t *testing.T) {
 	future := time.Now().Add(24 * time.Hour).Format(time.RFC3339)
 	_, err = testDB.Exec(`
 		INSERT INTO events (user_id, title, description, category, latitude, longitude, start_time,
-							creator_name, slug)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+							creator_name, slug, allow_unregistered_users)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`, userID, "Public Test Event", "Test Description", "social_drinks", 52.52, 13.405, future,
-		"Test User", "public-test-event")
+		"Test User", "public-test-event", 1)
 	require.NoError(t, err)
 
 	router := gin.New()

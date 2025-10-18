@@ -40,7 +40,6 @@ function ProfilePage() {
   const [formData, setFormData] = useState({
     name: user?.name || '',
     bio: user?.bio || '',
-        threema: user?.threema || '',
     languages: user?.languages || '',
   })
   const [error, setError] = useState('')
@@ -110,7 +109,6 @@ function ProfilePage() {
       setFormData({
         name: user.name || '',
         bio: user.bio || '',
-                threema: user.threema || '',
         languages: user.languages || '',
       })
     }
@@ -264,19 +262,6 @@ function ProfilePage() {
               </div>
 
               <div className="form-group">
-                <label htmlFor="threema">Default contact method (optional)</label>
-                <input
-                  type="text"
-                  id="threema"
-                  name="threema"
-                  value={formData.threema}
-                  onChange={handleChange}
-                  placeholder="@username or contact info"
-                />
-                <small className="form-hint">Will be used to auto-fill event contact info</small>
-              </div>
-
-              <div className="form-group">
                 <label>Spoken Languages (optional)</label>
                 <small className="form-hint" style={{display: 'block', marginBottom: '0.75rem'}}>
                   Select languages you speak - will be auto-filled when creating events
@@ -330,11 +315,6 @@ function ProfilePage() {
                     <p>{user.bio}</p>
                   </div>
                 )}
-
-                <div className="detail-group">
-                  <label>Default contact method</label>
-                  <p>{user.threema || 'Not set'}</p>
-                </div>
 
                 <div className="detail-group">
                   <label>Languages</label>

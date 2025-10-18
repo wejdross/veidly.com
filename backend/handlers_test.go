@@ -107,6 +107,7 @@ func setupTestDB(t *testing.T) *sql.DB {
 		hide_participants_until_joined BOOLEAN DEFAULT 1,
 		require_verified_to_join BOOLEAN DEFAULT 0,
 		require_verified_to_view BOOLEAN DEFAULT 0,
+		allow_unregistered_users BOOLEAN DEFAULT 0,
 		FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 	)`)
 	require.NoError(t, err, "Failed to create events table")
@@ -221,8 +222,8 @@ func createTestEvent(t *testing.T, testDB *sql.DB, userID int64, title string) i
 	}
 
 	result, err := testDB.Exec(`
-		INSERT INTO events (user_id, title, description, category, latitude, longitude, start_time, creator_name, event_languages, hide_organizer_until_joined, hide_participants_until_joined, require_verified_to_join, require_verified_to_view)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 1, 0, 0)
+		INSERT INTO events (user_id, title, description, category, latitude, longitude, start_time, creator_name, event_languages, hide_organizer_until_joined, hide_participants_until_joined, require_verified_to_join, require_verified_to_view, allow_unregistered_users)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 1, 0, 0, 1)
 	`, userID, title, "Test description", "social_drinks", 46.8805, 8.6444, future, "Test User", eventLanguages)
 	require.NoError(t, err)
 
@@ -1081,15 +1082,16 @@ func TestFullUserJourney(t *testing.T) {
 		future := time.Now().Add(24 * time.Hour).Format(time.RFC3339)
 
 		payload := map[string]interface{}{
-			"title":              "Coffee Meetup",
-			"description":        "Let's grab coffee and chat",
-			"category":           "social_drinks",
-			"latitude":           46.8805,
-			"longitude":          8.6444,
-			"start_time":         future,
-			"creator_name":       "Journey User",
-			"max_participants":   5,
-			"gender_restriction": "any",
+			"title":                   "Coffee Meetup",
+			"description":             "Let's grab coffee and chat",
+			"category":                "social_drinks",
+			"latitude":                46.8805,
+			"longitude":               8.6444,
+			"start_time":              future,
+			"creator_name":            "Journey User",
+			"max_participants":        5,
+			"gender_restriction":      "any",
+			"allow_unregistered_users": true,
 		}
 		body, _ := json.Marshal(payload)
 
@@ -1227,16 +1229,16 @@ func TestEventFiltering(t *testing.T) {
 	
 	// Event 1: Sports
 	_, err := testDB.Exec(`
-		INSERT INTO events (user_id, title, description, category, latitude, longitude, start_time, creator_name)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-	`, userID, "Sports Event", "Test", "social_sports", 46.8805, 8.6444, future, "User")
+		INSERT INTO events (user_id, title, description, category, latitude, longitude, start_time, creator_name, allow_unregistered_users)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, userID, "Sports Event", "Test", "social_sports", 46.8805, 8.6444, future, "User", 1)
 	require.NoError(t, err)
 
 	// Event 2: Drinks
 	_, err = testDB.Exec(`
-		INSERT INTO events (user_id, title, description, category, latitude, longitude, start_time, creator_name)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-	`, userID, "Drinks Event", "Test", "social_drinks", 46.8805, 8.6444, future, "User")
+		INSERT INTO events (user_id, title, description, category, latitude, longitude, start_time, creator_name, allow_unregistered_users)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, userID, "Drinks Event", "Test", "social_drinks", 46.8805, 8.6444, future, "User", 1)
 	require.NoError(t, err)
 
 	router := gin.New()

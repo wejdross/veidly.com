@@ -119,19 +119,16 @@ func login(c *gin.Context) {
 
 	var user User
 	var hashedPassword string
-	var bio, threema, languages sql.NullString
+	var bio, languages sql.NullString
 	err := db.QueryRow(`
-		SELECT id, email, password, name, bio, threema, languages, is_admin, is_blocked, email_verified, created_at
+		SELECT id, email, password, name, bio, languages, is_admin, is_blocked, email_verified, created_at
 		FROM users WHERE email = ?
-	`, req.Email).Scan(&user.ID, &user.Email, &hashedPassword, &user.Name, &bio, &threema, &languages,
+	`, req.Email).Scan(&user.ID, &user.Email, &hashedPassword, &user.Name, &bio, &languages,
 		&user.IsAdmin, &user.IsBlocked, &user.EmailVerified, &user.CreatedAt)
 
 	// Convert NullString to string
 	if bio.Valid {
 		user.Bio = bio.String
-	}
-	if threema.Valid {
-		user.Threema = threema.String
 	}
 	if languages.Valid {
 		user.Languages = languages.String
@@ -182,18 +179,15 @@ func getCurrentUser(c *gin.Context) {
 	userID := c.GetInt("user_id")
 
 	var user User
-	var bio, threema, languages sql.NullString
+	var bio, languages sql.NullString
 	err := db.QueryRow(`
-		SELECT id, email, name, bio, threema, languages, is_admin, is_blocked, email_verified, created_at
+		SELECT id, email, name, bio, languages, is_admin, is_blocked, email_verified, created_at
 		FROM users WHERE id = ?
-	`, userID).Scan(&user.ID, &user.Email, &user.Name, &bio, &threema, &languages, &user.IsAdmin, &user.IsBlocked, &user.EmailVerified, &user.CreatedAt)
+	`, userID).Scan(&user.ID, &user.Email, &user.Name, &bio, &languages, &user.IsAdmin, &user.IsBlocked, &user.EmailVerified, &user.CreatedAt)
 
 	// Convert NullString to string
 	if bio.Valid {
 		user.Bio = bio.String
-	}
-	if threema.Valid {
-		user.Threema = threema.String
 	}
 	if languages.Valid {
 		user.Languages = languages.String
@@ -409,7 +403,7 @@ func getEvents(c *gin.Context) {
 		e.IsParticipant = isParticipant
 
 		// Check if event can be viewed
-		if errMsg := CheckEventViewPermission(&e, isVerified, isAdmin); errMsg != "" {
+		if errMsg := CheckEventViewPermission(&e, userID, isVerified, isAdmin); errMsg != "" {
 			// Skip events that require verification
 			continue
 		}
@@ -830,7 +824,7 @@ func adminGetUsers(c *gin.Context) {
 	log.Println("👥 GET /api/admin/users - Admin fetching all users")
 
 	rows, err := db.Query(`
-		SELECT id, email, name, bio, threema, languages, is_admin, is_blocked, email_verified, created_at
+		SELECT id, email, name, bio, languages, is_admin, is_blocked, email_verified, created_at
 		FROM users ORDER BY created_at DESC
 	`)
 	if err != nil {
@@ -842,17 +836,14 @@ func adminGetUsers(c *gin.Context) {
 	var users []User
 	for rows.Next() {
 		var u User
-		var bio, threema, languages sql.NullString
-		err := rows.Scan(&u.ID, &u.Email, &u.Name, &bio, &threema, &languages, &u.IsAdmin, &u.IsBlocked, &u.EmailVerified, &u.CreatedAt)
+		var bio, languages sql.NullString
+		err := rows.Scan(&u.ID, &u.Email, &u.Name, &bio, &languages, &u.IsAdmin, &u.IsBlocked, &u.EmailVerified, &u.CreatedAt)
 		if err != nil {
 			continue
 		}
 		// Convert NullString to string
 		if bio.Valid {
 			u.Bio = bio.String
-		}
-		if threema.Valid {
-			u.Threema = threema.String
 		}
 		if languages.Valid {
 			u.Languages = languages.String
@@ -1039,19 +1030,16 @@ func getOwnProfile(c *gin.Context) {
 
 	// Get user profile
 	var user User
-	var bio, threema, languages sql.NullString
+	var bio, languages sql.NullString
 	err := db.QueryRow(`
-		SELECT id, email, name, bio, threema, languages, is_admin, is_blocked, email_verified, created_at
+		SELECT id, email, name, bio, languages, is_admin, is_blocked, email_verified, created_at
 		FROM users WHERE id = ?
-	`, userID).Scan(&user.ID, &user.Email, &user.Name, &bio, &threema, &languages,
+	`, userID).Scan(&user.ID, &user.Email, &user.Name, &bio, &languages,
 		&user.IsAdmin, &user.IsBlocked, &user.EmailVerified, &user.CreatedAt)
 
 	// Convert NullString to string
 	if bio.Valid {
 		user.Bio = bio.String
-	}
-	if threema.Valid {
-		user.Threema = threema.String
 	}
 	if languages.Valid {
 		user.Languages = languages.String
@@ -1194,9 +1182,9 @@ func updateProfile(c *gin.Context) {
 	}
 
 	_, err := db.Exec(`
-		UPDATE users SET name = ?, bio = ?, threema = ?, languages = ?
+		UPDATE users SET name = ?, bio = ?, languages = ?
 		WHERE id = ?
-	`, req.Name, req.Bio, req.Threema, req.Languages, userID)
+	`, req.Name, req.Bio, req.Languages, userID)
 
 	if err != nil {
 		log.Printf("❌ Profile update failed: %v", err)
@@ -1206,19 +1194,16 @@ func updateProfile(c *gin.Context) {
 
 	// Get updated user
 	var user User
-	var bio, threema, languages sql.NullString
+	var bio, languages sql.NullString
 	err = db.QueryRow(`
-		SELECT id, email, name, bio, threema, languages, is_admin, is_blocked, email_verified, created_at
+		SELECT id, email, name, bio, languages, is_admin, is_blocked, email_verified, created_at
 		FROM users WHERE id = ?
-	`, userID).Scan(&user.ID, &user.Email, &user.Name, &bio, &threema, &languages,
+	`, userID).Scan(&user.ID, &user.Email, &user.Name, &bio, &languages,
 		&user.IsAdmin, &user.IsBlocked, &user.EmailVerified, &user.CreatedAt)
 
 	// Convert NullString to string
 	if bio.Valid {
 		user.Bio = bio.String
-	}
-	if threema.Valid {
-		user.Threema = threema.String
 	}
 	if languages.Valid {
 		user.Languages = languages.String
@@ -1238,19 +1223,16 @@ func getUserProfile(c *gin.Context) {
 	log.Printf("👤 GET /api/profile/%s - Fetching user profile", id)
 
 	var user User
-	var bio, threema, languages sql.NullString
+	var bio, languages sql.NullString
 	err := db.QueryRow(`
-		SELECT id, email, name, bio, threema, languages, is_admin, is_blocked, email_verified, created_at
+		SELECT id, email, name, bio, languages, is_admin, is_blocked, email_verified, created_at
 		FROM users WHERE id = ?
-	`, id).Scan(&user.ID, &user.Email, &user.Name, &bio, &threema, &languages,
+	`, id).Scan(&user.ID, &user.Email, &user.Name, &bio, &languages,
 		&user.IsAdmin, &user.IsBlocked, &user.EmailVerified, &user.CreatedAt)
 
 	// Convert NullString to string
 	if bio.Valid {
 		user.Bio = bio.String
-	}
-	if threema.Valid {
-		user.Threema = threema.String
 	}
 	if languages.Valid {
 		user.Languages = languages.String
@@ -1532,7 +1514,7 @@ func getPublicEvent(c *gin.Context) {
 	e.IsParticipant = isParticipant
 
 	// Check if event can be viewed
-	if errMsg := CheckEventViewPermission(&e, isVerified, isAdmin); errMsg != "" {
+	if errMsg := CheckEventViewPermission(&e, userID, isVerified, isAdmin); errMsg != "" {
 		log.Printf("❌ User cannot view event %s: %s", slug, errMsg)
 		c.JSON(http.StatusForbidden, gin.H{"error": errMsg})
 		return

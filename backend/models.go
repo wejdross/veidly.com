@@ -8,7 +8,6 @@ type User struct {
 	Password       string    `json:"-" binding:"required,min=8"` // Never expose password in JSON responses
 	Name           string    `json:"name" binding:"required"`
 	Bio            string    `json:"bio"`
-	Threema        string    `json:"threema"`
 	Languages      string    `json:"languages"` // Comma-separated language codes (e.g., "en,de,fr")
 	IsAdmin        bool      `json:"is_admin"`
 	IsBlocked      bool      `json:"is_blocked"`
@@ -19,7 +18,6 @@ type User struct {
 type ProfileUpdateRequest struct {
 	Name      string `json:"name"`
 	Bio       string `json:"bio"`
-	Threema   string `json:"threema"`
 	Languages string `json:"languages"`
 }
 
@@ -91,6 +89,7 @@ type Event struct {
 	HideParticipantsUntilJoined bool `json:"hide_participants_until_joined"`
 	RequireVerifiedToJoin       bool `json:"require_verified_to_join"`
 	RequireVerifiedToView       bool `json:"require_verified_to_view"`
+	AllowUnregisteredUsers      bool `json:"allow_unregistered_users"`
 
 	// Joined data
 	UserEmail        string `json:"user_email,omitempty"`

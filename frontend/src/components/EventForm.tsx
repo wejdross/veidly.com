@@ -46,6 +46,7 @@ function EventForm({ initialLocation, onClose, event }: EventFormProps) {
     hide_participants_until_joined: event?.hide_participants_until_joined !== undefined ? event.hide_participants_until_joined : true,
     require_verified_to_join: event?.require_verified_to_join !== undefined ? event.require_verified_to_join : false,
     require_verified_to_view: event?.require_verified_to_view !== undefined ? event.require_verified_to_view : true,
+    allow_unregistered_users: event?.allow_unregistered_users !== undefined ? event.allow_unregistered_users : false,
   })
 
   const [error, setError] = useState('')
@@ -593,6 +594,23 @@ function EventForm({ initialLocation, onClose, event }: EventFormProps) {
                   <strong>Require verified email to view event details</strong>
                   <small className="checkbox-description">
                     Hide event completely from unverified users (they won't see it on the map)
+                  </small>
+                </span>
+              </label>
+            </div>
+
+            <div className="form-group">
+              <label className="checkbox-label">
+                <input
+                  type="checkbox"
+                  name="allow_unregistered_users"
+                  checked={formData.allow_unregistered_users}
+                  onChange={handleChange}
+                />
+                <span>
+                  <strong>Allow unregistered users to view this event</strong>
+                  <small className="checkbox-description">
+                    Anyone can see this event without creating an account (recommended for public events)
                   </small>
                 </span>
               </label>

@@ -5,7 +5,6 @@ export interface User {
   age?: number
   gender?: string
   bio?: string
-  threema?: string
   languages?: string  // Comma-separated language codes (e.g., "en,de,fr")
   is_admin: boolean
   is_blocked: boolean
@@ -47,6 +46,7 @@ export interface Event {
   hide_participants_until_joined: boolean
   require_verified_to_join: boolean
   require_verified_to_view: boolean
+  allow_unregistered_users: boolean
   is_participant?: boolean  // Whether current user is a participant
 }
 

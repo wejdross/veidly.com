@@ -98,28 +98,48 @@ func TestApplyPrivacyFiltersEdgeCases(t *testing.T) {
 }
 
 func TestCheckEventViewPermission(t *testing.T) {
-	// Test 1: Unverified user cannot view event requiring verification
+	// Test 1: Unregistered user cannot view event that doesn't allow unregistered
 	event := &Event{
-		ID:                    1,
-		RequireVerifiedToView: true,
+		ID:                     1,
+		AllowUnregisteredUsers: false,
 	}
-	reason := CheckEventViewPermission(event, false, false)
+	reason := CheckEventViewPermission(event, 0, false, false) // userID=0 means unregistered
+	assert.NotEmpty(t, reason)
+	assert.Contains(t, reason, "registration")
+
+	// Test 2: Registered unverified user cannot view event requiring verification
+	event2 := &Event{
+		ID:                     2,
+		AllowUnregisteredUsers: false,
+		RequireVerifiedToView:  true,
+	}
+	reason = CheckEventViewPermission(event2, 123, false, false) // userID=123, not verified
 	assert.NotEmpty(t, reason)
 	assert.Contains(t, reason, "verified email")
 
-	// Test 2: Verified user can view
-	reason = CheckEventViewPermission(event, true, false)
+	// Test 3: Registered verified user can view
+	reason = CheckEventViewPermission(event2, 123, true, false) // userID=123, verified
 	assert.Empty(t, reason)
 
-	// Test 3: Admin can always view
-	reason = CheckEventViewPermission(event, false, true)
+	// Test 4: Admin can always view
+	reason = CheckEventViewPermission(event, 0, false, true) // unregistered but admin
 	assert.Empty(t, reason)
 
-	// Test 4: Public event (anyone can view)
-	event2 := &Event{
-		ID:                    2,
-		RequireVerifiedToView: false,
+	// Test 5: Event allowing unregistered users - anyone can view
+	event3 := &Event{
+		ID:                     3,
+		AllowUnregisteredUsers: true,
+		RequireVerifiedToView:  true, // This is ignored when allow_unregistered_users is true
 	}
-	reason = CheckEventViewPermission(event2, false, false)
+	reason = CheckEventViewPermission(event3, 0, false, false) // unregistered user
+	assert.Empty(t, reason)
+
+	// Test 6: Registered user can view event not requiring verification
+	event4 := &Event{
+		ID:                     4,
+		AllowUnregisteredUsers: false,
+		RequireVerifiedToView:  false,
+	}
+	reason = CheckEventViewPermission(event4, 123, false, false) // registered but unverified
 	assert.Empty(t, reason)
 }

@@ -55,13 +55,26 @@ func ApplyPrivacyFilters(event *Event, viewerUserID int, viewerIsVerified bool, 
 
 // CheckEventViewPermission checks if a user can view an event based on privacy settings
 // Returns error message if viewing is not allowed, empty string if allowed
-func CheckEventViewPermission(event *Event, viewerIsVerified bool, isAdmin bool) string {
+// viewerUserID: 0 for unregistered users, >0 for registered users
+// viewerIsVerified: email verification status (only relevant if viewerUserID > 0)
+func CheckEventViewPermission(event *Event, viewerUserID int, viewerIsVerified bool, isAdmin bool) string {
 	// Admins can always view
 	if isAdmin {
 		return ""
 	}
 
-	// Check if event requires verified email to view
+	// Check if event allows unregistered users
+	// If unregistered users are allowed, anyone can view
+	if event.AllowUnregisteredUsers {
+		return ""
+	}
+
+	// If unregistered users are NOT allowed, require authentication
+	if viewerUserID == 0 {
+		return "This event requires registration to view. Please create an account or log in."
+	}
+
+	// User is registered - check if event requires verified email
 	if event.RequireVerifiedToView && !viewerIsVerified {
 		return "This event is only visible to users with verified email addresses. Please verify your email to view event details."
 	}
@@ -123,7 +136,6 @@ func GetParticipantsWithPrivacy(eventID int, viewerUserID int, viewerIsVerified 
 	if !viewerIsVerified {
 		for i := range participants {
 			participants[i].Email = ""
-			participants[i].Threema = ""
 		}
 	}
 

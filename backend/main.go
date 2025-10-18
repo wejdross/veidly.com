@@ -242,6 +242,7 @@ func initDB() {
 		"hide_participants_until_joined": "INTEGER DEFAULT 1",
 		"require_verified_to_join":       "INTEGER DEFAULT 0",
 		"require_verified_to_view":       "INTEGER DEFAULT 0",
+		"allow_unregistered_users":       "INTEGER DEFAULT 0",
 	}
 
 	// Whitelist of allowed column names to prevent SQL injection
@@ -250,6 +251,7 @@ func initDB() {
 		"hide_participants_until_joined": true,
 		"require_verified_to_join":       true,
 		"require_verified_to_view":       true,
+		"allow_unregistered_users":       true,
 	}
 
 	for columnName, columnDef := range privacyColumns {
