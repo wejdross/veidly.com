@@ -267,16 +267,27 @@ jobs:
 
       - name: Verify deployment
         run: |
-          echo "Waiting for deployment to stabilize..."
-          sleep 15
+          echo "Waiting for services to start..."
+          sleep 10
 
-          # Check if API is accessible
-          curl -f -I https://${{ secrets.DOMAIN || 'veidly.com' }}/api/events || {
-            echo "❌ API health check failed!"
-            exit 1
-          }
+          # Check backend health endpoint
+          DOMAIN="${{ secrets.DOMAIN || 'veidly.com' }}"
 
-          echo "✅ Deployment verified successfully!"
+          echo "Checking backend health at https://$DOMAIN/health"
+
+          for i in {1..5}; do
+            if curl -f -s https://$DOMAIN/health | grep -q '"status":"ok"'; then
+              echo "✅ Backend health check passed!"
+              exit 0
+            fi
+            echo "Attempt $i/5 failed, retrying in 3 seconds..."
+            sleep 3
+          done
+
+          echo "❌ Backend health check failed after 5 attempts!"
+          echo "Trying to get more info..."
+          curl -v https://$DOMAIN/health || true
+          exit 1
 
       - name: Deployment summary
         if: success()
@@ -383,7 +394,9 @@ jobs:
       - name: Run smoke tests
         run: |
           sleep 10
-          curl -f https://staging.${{ secrets.DOMAIN || 'veidly.com' }}/api/events
+          # Check health endpoint instead of /api/events
+          curl -f https://staging.${{ secrets.DOMAIN || 'veidly.com' }}/health | grep -q '"status":"ok"'
+          echo "✅ Staging health check passed!"
 
       - name: Cleanup
         if: always()
