@@ -453,36 +453,61 @@ func initDB() {
 		}
 	}
 
-	// Create default admin user with secure password
-	var adminCount int
-	db.QueryRow("SELECT COUNT(*) FROM users WHERE is_admin = 1").Scan(&adminCount)
+	// Create or update default admin user with secure password
+	adminEmail := os.Getenv("ADMIN_EMAIL")
+	if adminEmail == "" {
+		adminEmail = "admin@veidly.com" // Default fallback
+	}
 
-	if adminCount == 0 {
-		adminPass := os.Getenv("ADMIN_PASSWORD")
-		if adminPass == "" {
-			// Generate random password only in development
-			if os.Getenv("ENVIRONMENT") == "development" {
-				adminPass = generateRandomString(16)
-				log.Printf("⚠️  IMPORTANT: Generated admin password: %s", adminPass)
-				log.Println("⚠️  SAVE THIS PASSWORD - Set ADMIN_PASSWORD env var for custom password")
-			} else {
+	var adminCount int
+	db.QueryRow("SELECT COUNT(*) FROM users WHERE email = ?", adminEmail).Scan(&adminCount)
+
+	adminPass := os.Getenv("ADMIN_PASSWORD")
+	if adminPass == "" {
+		// Generate random password only in development
+		if os.Getenv("ENVIRONMENT") == "development" {
+			adminPass = generateRandomString(16)
+			log.Printf("⚠️  IMPORTANT: Generated admin password: %s", adminPass)
+			log.Println("⚠️  SAVE THIS PASSWORD - Set ADMIN_PASSWORD env var for custom password")
+		} else {
+			if adminCount == 0 {
+				// Only fail if we're trying to create a new admin in production
 				log.Fatal("ADMIN_PASSWORD environment variable must be set in production")
+			} else {
+				// Admin exists but no password in env - skip update
+				log.Printf("ℹ️  Admin user exists, ADMIN_PASSWORD not set - keeping existing password")
 			}
 		}
+	}
+
+	if adminPass != "" {
 		hashedPassword, err := hashPassword(adminPass)
 		if err != nil {
 			log.Fatalf("Failed to hash admin password: %v", err)
 		}
-		result, err := db.Exec(`INSERT INTO users (email, password, name, is_admin) VALUES (?, ?, 'Admin', 1)`,
-			"admin@veidly.com", hashedPassword)
-		if err != nil {
-			log.Printf("⚠️  Admin user creation failed: %v", err)
-		} else {
-			id, err := result.LastInsertId()
+
+		if adminCount == 0 {
+			// Create new admin user
+			result, err := db.Exec(`INSERT INTO users (email, password, name, is_admin, email_verified) VALUES (?, ?, 'Admin', 1, 1)`,
+				adminEmail, hashedPassword)
 			if err != nil {
-				log.Printf("⚠️  Admin user created but failed to get ID: %v", err)
+				log.Printf("⚠️  Admin user creation failed: %v", err)
 			} else {
-				log.Printf("✓ Admin user created with ID: %d (email: admin@veidly.com)", id)
+				id, err := result.LastInsertId()
+				if err != nil {
+					log.Printf("⚠️  Admin user created but failed to get ID: %v", err)
+				} else {
+					log.Printf("✓ Admin user created with ID: %d (email: %s)", id, adminEmail)
+				}
+			}
+		} else {
+			// Update existing admin password
+			_, err := db.Exec(`UPDATE users SET password = ?, is_admin = 1, email_verified = 1 WHERE email = ?`,
+				hashedPassword, adminEmail)
+			if err != nil {
+				log.Printf("⚠️  Admin password update failed: %v", err)
+			} else {
+				log.Printf("✓ Admin password updated for: %s", adminEmail)
 			}
 		}
 	}
