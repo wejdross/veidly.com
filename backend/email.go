@@ -32,9 +32,10 @@ func NewEmailService() *EmailService {
 
 	mg := mailgun.NewMailgun(domain, apiKey)
 
-	// Use EU API endpoint for EU domains (mg.veidly.com)
+	// Use EU API endpoint for EU domains (veidly.com)
 	// Change this to https://api.mailgun.net for US domains
-	mg.SetAPIBase("https://api.eu.mailgun.net/v3")
+	// Note: Do NOT include /v3 - the library adds it automatically
+	mg.SetAPIBase("https://api.eu.mailgun.net")
 
 	log.Printf("✓ Email service initialized for domain: %s (EU endpoint)", domain)
 	return &EmailService{

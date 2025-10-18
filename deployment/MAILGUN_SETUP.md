@@ -5,7 +5,7 @@ This guide will help you configure Mailgun for the Veidly application.
 ## Prerequisites
 
 1. Mailgun account created
-2. Domain `mg.veidly.com` added to Mailgun
+2. Domain `veidly.com` added to Mailgun (or your sandbox domain)
 3. API key from Mailgun dashboard
 
 ## Configuration Steps
@@ -18,15 +18,15 @@ This guide will help you configure Mailgun for the Veidly application.
 
 ### 2. Verify Your Domain (Required for Production)
 
-For **sandbox domains** (like `mg.veidly.com`), you can send emails to authorized recipients only.
+For **sandbox domains** (like `veidly.com`), you can send emails to authorized recipients only.
 
 **Option A: Keep Sandbox Domain (Testing)**
-- Go to: https://app.mailgun.com/app/sending/domains/mg.veidly.com/recipients
+- Go to: https://app.mailgun.com/app/sending/domains/veidly.com/recipients
 - Add authorized recipient emails (e.g., `lukaszwidera1993@gmail.com`)
 - These are the only emails that can receive messages
 
 **Option B: Verify Domain (Production)**
-1. Go to: https://app.mailgun.com/app/sending/domains/mg.veidly.com/verify
+1. Go to: https://app.mailgun.com/app/sending/domains/veidly.com/verify
 2. Add the required DNS records to your domain:
    - **TXT records** for domain verification
    - **MX records** for receiving emails
@@ -43,14 +43,14 @@ Edit `deployment/inventory` file:
 # ... other settings ...
 
 # Mailgun Configuration
-mailgun_domain=mg.veidly.com
+mailgun_domain=veidly.com
 mailgun_api_key=key-YOUR_ACTUAL_API_KEY_HERE    # ⚠️ Replace this!
-mailgun_from_email=postmaster@mg.veidly.com     # ⚠️ Must match sandbox domain
+mailgun_from_email=postmaster@veidly.com     # ⚠️ Must match sandbox domain
 ```
 
 **Important Notes:**
-- ✅ Use `mg.veidly.com` as the domain (your Mailgun sandbox)
-- ✅ Use `postmaster@mg.veidly.com` as from email (required for sandbox)
+- ✅ Use `veidly.com` as the domain (your Mailgun sandbox)
+- ✅ Use `postmaster@veidly.com` as from email (required for sandbox)
 - ✅ Replace `key-YOUR_ACTUAL_API_KEY_HERE` with your real API key
 - ⚠️ **Never commit the actual API key to git!** (inventory file is gitignored)
 
@@ -95,14 +95,14 @@ import (
 )
 
 func main() {
-    domain := "mg.veidly.com"
+    domain := "veidly.com"
     apiKey := os.Getenv("MAILGUN_API_KEY")
 
     mg := mailgun.NewMailgun(domain, apiKey)
     mg.SetAPIBase("https://api.eu.mailgun.net/v3")
 
     m := mg.NewMessage(
-        "Veidly <postmaster@mg.veidly.com>",
+        "Veidly <postmaster@veidly.com>",
         "Test from Veidly",
         "This is a test email!",
         "lukaszwidera1993@gmail.com",
@@ -155,7 +155,7 @@ After deployment, test the email features:
 
 Expected log messages:
 ```
-✓ Email service initialized for domain: mg.veidly.com (EU endpoint)
+✓ Email service initialized for domain: veidly.com (EU endpoint)
 ✓ Verification email sent to user@example.com
 ✓ Password reset email sent to user@example.com
 ```

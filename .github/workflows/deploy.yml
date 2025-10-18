@@ -248,7 +248,7 @@ jobs:
           jwt_secret=${{ secrets.JWT_SECRET }}
           mailgun_domain=${{ secrets.MAILGUN_DOMAIN }}
           mailgun_api_key=${{ secrets.MAILGUN_API_KEY }}
-          mailgun_from_email=${{ secrets.MAILGUN_FROM_EMAIL || 'postmaster@mg.veidly.com' }}
+          mailgun_from_email=${{ secrets.MAILGUN_FROM_EMAIL || 'postmaster@veidly.com' }}
           admin_email=${{ secrets.ADMIN_EMAIL }}
           admin_password=${{ secrets.ADMIN_PASSWORD }}
           EOF
@@ -370,7 +370,7 @@ jobs:
           jwt_secret=${{ secrets.STAGING_JWT_SECRET }}
           mailgun_domain=${{ secrets.MAILGUN_DOMAIN }}
           mailgun_api_key=${{ secrets.MAILGUN_API_KEY }}
-          mailgun_from_email=${{ secrets.MAILGUN_FROM_EMAIL || 'postmaster@mg.veidly.com' }}
+          mailgun_from_email=${{ secrets.MAILGUN_FROM_EMAIL || 'postmaster@veidly.com' }}
           admin_email=${{ secrets.ADMIN_EMAIL }}
           admin_password=${{ secrets.ADMIN_PASSWORD }}
           EOF
