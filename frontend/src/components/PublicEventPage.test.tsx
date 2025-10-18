@@ -226,6 +226,21 @@ describe('PublicEventPage Component', () => {
         expect(screen.getByRole('button', { name: /sign in to join/i })).toBeInTheDocument()
       })
     })
+
+    it('should navigate with returnTo parameter when "Sign In to Join" is clicked', async () => {
+      vi.mocked(api.api.getPublicEvent).mockResolvedValue(mockEvent)
+
+      render(<PublicEventPage />)
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /sign in to join/i })).toBeInTheDocument()
+      })
+
+      const signInButton = screen.getByRole('button', { name: /sign in to join/i })
+      fireEvent.click(signInButton)
+
+      expect(mockNavigate).toHaveBeenCalledWith('/?returnTo=/event/test-event-abc123')
+    })
   })
 
   describe('Navigation - Authenticated', () => {

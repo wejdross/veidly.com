@@ -243,7 +243,7 @@ export default function PublicEventPage() {
         {!isAuthenticated ? (
           <div className="join-cta">
             <p>Want to join this event?</p>
-            <button onClick={() => navigate('/')} className="btn-primary btn-large">
+            <button onClick={() => navigate(`/?returnTo=/event/${slug}`)} className="btn-primary btn-large">
               Sign In to Join
             </button>
           </div>
