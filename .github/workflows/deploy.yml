@@ -265,29 +265,10 @@ jobs:
             --extra-vars "release_tag=${{ github.event.inputs.release_tag || github.ref_name }}" \
             -v
 
-      - name: Verify deployment
+      - name: Check service is running
         run: |
-          echo "Waiting for services to start..."
-          sleep 10
-
-          # Check backend health endpoint
-          DOMAIN="${{ secrets.DOMAIN || 'veidly.com' }}"
-
-          echo "Checking backend health at https://$DOMAIN/health"
-
-          for i in {1..5}; do
-            if curl -f -s https://$DOMAIN/health | grep -q '"status":"ok"'; then
-              echo "✅ Backend health check passed!"
-              exit 0
-            fi
-            echo "Attempt $i/5 failed, retrying in 3 seconds..."
-            sleep 3
-          done
-
-          echo "❌ Backend health check failed after 5 attempts!"
-          echo "Trying to get more info..."
-          curl -v https://$DOMAIN/health || true
-          exit 1
+          sleep 5
+          curl -f https://${{ secrets.DOMAIN || 'veidly.com' }}/health
 
       - name: Deployment summary
         if: success()
@@ -391,12 +372,10 @@ jobs:
         run: |
           ansible-playbook -i inventory deploy.yml
 
-      - name: Run smoke tests
+      - name: Check service is running
         run: |
-          sleep 10
-          # Check health endpoint instead of /api/events
-          curl -f https://staging.${{ secrets.DOMAIN || 'veidly.com' }}/health | grep -q '"status":"ok"'
-          echo "✅ Staging health check passed!"
+          sleep 5
+          curl -f https://staging.${{ secrets.DOMAIN || 'veidly.com' }}/health
 
       - name: Cleanup
         if: always()

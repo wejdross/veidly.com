@@ -56,14 +56,10 @@
     - nginx
 
   post_tasks:
-    - name: Verify backend is running
+    - name: Check backend is running
       uri:
         url: "http://localhost:8080/health"
         status_code: 200
-      retries: 5
-      delay: 3
-      register: health_check
-      until: health_check.status == 200
 
     - name: Display deployment info
       debug:
