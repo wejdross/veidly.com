@@ -217,8 +217,21 @@ jobs:
       - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/deploy_key
+          # Write SSH key with proper formatting (handle multiline secret)
+          echo "${{ secrets.HETZNER_SSH_KEY }}" | tr -d '\r' > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
+
+          # Verify key format
+          if ! ssh-keygen -l -f ~/.ssh/deploy_key; then
+            echo "❌ SSH key format is invalid"
+            echo "Key must be:"
+            echo "  1. Unencrypted (no passphrase)"
+            echo "  2. In OpenSSH or PEM format"
+            echo "  3. Private key (not public key)"
+            exit 1
+          fi
+
+          # Add host to known_hosts
           ssh-keyscan -H ${{ secrets.HETZNER_HOST }} >> ~/.ssh/known_hosts
 
       - name: Create Ansible inventory
@@ -235,7 +248,7 @@ jobs:
           jwt_secret=${{ secrets.JWT_SECRET }}
           mailgun_domain=${{ secrets.MAILGUN_DOMAIN }}
           mailgun_api_key=${{ secrets.MAILGUN_API_KEY }}
-          mailgun_from_email=${{ secrets.MAILGUN_FROM_EMAIL || 'noreply@veidly.com' }}
+          mailgun_from_email=${{ secrets.MAILGUN_FROM_EMAIL || 'postmaster@mg.veidly.com' }}
           admin_email=${{ secrets.ADMIN_EMAIL }}
           admin_password=${{ secrets.ADMIN_PASSWORD }}
           EOF
@@ -330,8 +343,17 @@ jobs:
       - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.STAGING_SSH_KEY }}" > ~/.ssh/deploy_key
+          # Write SSH key with proper formatting (handle multiline secret)
+          echo "${{ secrets.STAGING_SSH_KEY }}" | tr -d '\r' > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
+
+          # Verify key format
+          if ! ssh-keygen -l -f ~/.ssh/deploy_key; then
+            echo "❌ SSH key format is invalid"
+            exit 1
+          fi
+
+          # Add host to known_hosts
           ssh-keyscan -H ${{ secrets.STAGING_HOST }} >> ~/.ssh/known_hosts
 
       - name: Create staging inventory
@@ -348,7 +370,7 @@ jobs:
           jwt_secret=${{ secrets.STAGING_JWT_SECRET }}
           mailgun_domain=${{ secrets.MAILGUN_DOMAIN }}
           mailgun_api_key=${{ secrets.MAILGUN_API_KEY }}
-          mailgun_from_email=${{ secrets.MAILGUN_FROM_EMAIL || 'noreply@veidly.com' }}
+          mailgun_from_email=${{ secrets.MAILGUN_FROM_EMAIL || 'postmaster@mg.veidly.com' }}
           admin_email=${{ secrets.ADMIN_EMAIL }}
           admin_password=${{ secrets.ADMIN_PASSWORD }}
           EOF
