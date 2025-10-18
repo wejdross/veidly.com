@@ -129,7 +129,7 @@ export default function PublicEventPage() {
               <button onClick={() => navigate('/map')} className="btn-secondary">
                 Browse Events
               </button>
-              <button onClick={() => navigate('/')} className="btn-primary">
+              <button onClick={() => navigate(`/?returnTo=/event/${slug}`)} className="btn-primary">
                 Sign In
               </button>
             </>

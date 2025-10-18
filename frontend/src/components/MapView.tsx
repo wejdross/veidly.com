@@ -98,6 +98,16 @@ function MapView() {
     }
   }, []) // Only run on mount
 
+  // Handle redirect after successful authentication
+  useEffect(() => {
+    const returnTo = searchParams.get('returnTo')
+    if (returnTo && isAuthenticated) {
+      // Clear the returnTo parameter and navigate
+      setSearchParams({})
+      navigate(returnTo)
+    }
+  }, [isAuthenticated, searchParams, navigate, setSearchParams])
+
   useEffect(() => {
 
     // Try to get user's location

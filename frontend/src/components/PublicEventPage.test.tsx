@@ -213,7 +213,7 @@ describe('PublicEventPage Component', () => {
       })
 
       fireEvent.click(screen.getByRole('button', { name: /^sign in$/i }))
-      expect(mockNavigate).toHaveBeenCalledWith('/')
+      expect(mockNavigate).toHaveBeenCalledWith('/?returnTo=/event/test-event-abc123')
     })
 
     it('should show CTA to sign in when not authenticated', async () => {
