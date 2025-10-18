@@ -66,10 +66,10 @@ func TestValidateProfileUpdate(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "Valid with threema",
+			name: "Valid with bio",
 			req: ProfileUpdateRequest{
 				Name:    "John",
-				Threema: "ABCD1234",
+				Bio:     "Test bio",
 			},
 			wantErr: false,
 		},

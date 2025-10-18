@@ -244,7 +244,7 @@ func getEvents(c *gin.Context) {
 		       e.gender_restriction, e.age_min, e.age_max,
 		       e.smoking_allowed, e.alcohol_allowed, e.event_languages, e.slug, e.created_at,
 		       e.hide_organizer_until_joined, e.hide_participants_until_joined,
-		       e.require_verified_to_join, e.require_verified_to_view,
+		       e.require_verified_to_join, e.require_verified_to_view, e.allow_unregistered_users,
 		       u.email, u.languages as creator_languages,
 		       (SELECT COUNT(*) FROM event_participants WHERE event_id = e.id) as participant_count
 	`
@@ -366,7 +366,7 @@ func getEvents(c *gin.Context) {
 			&maxParticipants, &genderRestriction, &e.AgeMin, &e.AgeMax,
 			&e.SmokingAllowed, &e.AlcoholAllowed, &eventLanguages, &slug, &createdAt,
 			&e.HideOrganizerUntilJoined, &e.HideParticipantsUntilJoined,
-			&e.RequireVerifiedToJoin, &e.RequireVerifiedToView,
+			&e.RequireVerifiedToJoin, &e.RequireVerifiedToView, &e.AllowUnregisteredUsers,
 			&userEmail, &creatorLanguages, &e.ParticipantCount, &isParticipant,
 		)
 		if err != nil {
@@ -548,14 +548,13 @@ func createEvent(c *gin.Context) {
 			gender_restriction, age_min, age_max,
 			smoking_allowed, alcohol_allowed, event_languages, slug,
 			hide_organizer_until_joined, hide_participants_until_joined,
-			require_verified_to_join, require_verified_to_view
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			require_verified_to_join, require_verified_to_view, allow_unregistered_users) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`, userID, event.Title, event.Description, event.Category, event.Latitude, event.Longitude,
 		startTime, endTimePtr, event.CreatorName,
 		event.MaxParticipants, event.GenderRestriction, event.AgeMin, event.AgeMax,
 		event.SmokingAllowed, event.AlcoholAllowed, event.EventLanguages, slug,
 		event.HideOrganizerUntilJoined, event.HideParticipantsUntilJoined,
-		event.RequireVerifiedToJoin, event.RequireVerifiedToView)
+		event.RequireVerifiedToJoin, event.RequireVerifiedToView, event.AllowUnregisteredUsers)
 
 	if err != nil {
 		log.Printf("❌ Database insert failed: %v", err)
@@ -626,12 +625,16 @@ func updateEvent(c *gin.Context) {
 			title = ?, description = ?, category = ?, latitude = ?, longitude = ?,
 			start_time = ?, end_time = ?, creator_name = ?,
 			max_participants = ?, gender_restriction = ?, age_min = ?, age_max = ?,
-			smoking_allowed = ?, alcohol_allowed = ?, event_languages = ?
+			smoking_allowed = ?, alcohol_allowed = ?, event_languages = ?,
+			hide_organizer_until_joined = ?, hide_participants_until_joined = ?,
+			require_verified_to_join = ?, require_verified_to_view = ?, allow_unregistered_users = ?
 		WHERE id = ?
 	`, event.Title, event.Description, event.Category, event.Latitude, event.Longitude,
 		startTime, endTimePtr, event.CreatorName,
 		event.MaxParticipants, event.GenderRestriction, event.AgeMin, event.AgeMax,
-		event.SmokingAllowed, event.AlcoholAllowed, event.EventLanguages, id)
+		event.SmokingAllowed, event.AlcoholAllowed, event.EventLanguages,
+		event.HideOrganizerUntilJoined, event.HideParticipantsUntilJoined,
+		event.RequireVerifiedToJoin, event.RequireVerifiedToView, event.AllowUnregisteredUsers, id)
 
 	if err != nil {
 		log.Printf("❌ Database update failed: %v", err)
@@ -1001,12 +1004,16 @@ func adminUpdateEvent(c *gin.Context) {
 			title = ?, description = ?, category = ?, latitude = ?, longitude = ?,
 			start_time = ?, end_time = ?, creator_name = ?,
 			max_participants = ?, gender_restriction = ?, age_min = ?, age_max = ?,
-			smoking_allowed = ?, alcohol_allowed = ?, event_languages = ?
+			smoking_allowed = ?, alcohol_allowed = ?, event_languages = ?,
+			hide_organizer_until_joined = ?, hide_participants_until_joined = ?,
+			require_verified_to_join = ?, require_verified_to_view = ?, allow_unregistered_users = ?
 		WHERE id = ?
 	`, event.Title, event.Description, event.Category, event.Latitude, event.Longitude,
 		startTime, endTimePtr, event.CreatorName,
 		event.MaxParticipants, event.GenderRestriction, event.AgeMin, event.AgeMax,
-		event.SmokingAllowed, event.AlcoholAllowed, event.EventLanguages, id)
+		event.SmokingAllowed, event.AlcoholAllowed, event.EventLanguages,
+		event.HideOrganizerUntilJoined, event.HideParticipantsUntilJoined,
+		event.RequireVerifiedToJoin, event.RequireVerifiedToView, event.AllowUnregisteredUsers, id)
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update event"})
@@ -1437,7 +1444,7 @@ func getPublicEvent(c *gin.Context) {
 		       e.gender_restriction, e.age_min, e.age_max,
 		       e.smoking_allowed, e.alcohol_allowed, e.event_languages, e.slug, e.created_at,
 		       e.hide_organizer_until_joined, e.hide_participants_until_joined,
-		       e.require_verified_to_join, e.require_verified_to_view,
+		       e.require_verified_to_join, e.require_verified_to_view, e.allow_unregistered_users,
 		       u.email, u.languages as creator_languages,
 		       (SELECT COUNT(*) FROM event_participants WHERE event_id = e.id) as participant_count
 	`
@@ -1454,7 +1461,7 @@ func getPublicEvent(c *gin.Context) {
 			&maxParticipants, &genderRestriction, &e.AgeMin, &e.AgeMax,
 			&e.SmokingAllowed, &e.AlcoholAllowed, &eventLanguages, &eventSlug, &createdAt,
 			&e.HideOrganizerUntilJoined, &e.HideParticipantsUntilJoined,
-			&e.RequireVerifiedToJoin, &e.RequireVerifiedToView,
+			&e.RequireVerifiedToJoin, &e.RequireVerifiedToView, &e.AllowUnregisteredUsers,
 			&userEmail, &creatorLanguages, &e.ParticipantCount, &isParticipant,
 		)
 	} else {
@@ -1468,7 +1475,7 @@ func getPublicEvent(c *gin.Context) {
 			&maxParticipants, &genderRestriction, &e.AgeMin, &e.AgeMax,
 			&e.SmokingAllowed, &e.AlcoholAllowed, &eventLanguages, &eventSlug, &createdAt,
 			&e.HideOrganizerUntilJoined, &e.HideParticipantsUntilJoined,
-			&e.RequireVerifiedToJoin, &e.RequireVerifiedToView,
+			&e.RequireVerifiedToJoin, &e.RequireVerifiedToView, &e.AllowUnregisteredUsers,
 			&userEmail, &creatorLanguages, &e.ParticipantCount, &isParticipant,
 		)
 	}

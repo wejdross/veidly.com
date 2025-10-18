@@ -164,7 +164,7 @@ function LandingPage() {
           </p>
           <div className="github-section">
             <a
-              href="https://github.com/anthropics/veidly"
+              href="https://github.com/wejdross/veidly.com"
               target="_blank"
               rel="noopener noreferrer"
               className="github-button"

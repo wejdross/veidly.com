@@ -71,7 +71,6 @@ func setupTestDB(t *testing.T) *sql.DB {
 		name TEXT NOT NULL,
 		bio TEXT,
 		phone TEXT,
-		threema TEXT,
 		languages TEXT,
 		is_admin BOOLEAN DEFAULT 0,
 		is_blocked BOOLEAN DEFAULT 0,
@@ -410,9 +409,9 @@ func TestGetProfile(t *testing.T) {
 	// Update profile with additional data
 	_, err := testDB.Exec(`
 		UPDATE users
-		SET bio = ?, threema = ?, languages = ?
+		SET bio = ?, languages = ?
 		WHERE id = ?
-	`, "Test bio", "TESTID", "en,de,fr", userID)
+	`, "Test bio", "en,de,fr", userID)
 	require.NoError(t, err)
 
 	router := gin.New()
@@ -436,7 +435,6 @@ func TestGetProfile(t *testing.T) {
 	userMap := response["user"].(map[string]interface{})
 	assert.Equal(t, "Test User", userMap["name"])
 	assert.Equal(t, "Test bio", userMap["bio"])
-	assert.Equal(t, "TESTID", userMap["threema"])
 	assert.Equal(t, "en,de,fr", userMap["languages"])
 }
 
@@ -458,7 +456,6 @@ func TestUpdateProfile(t *testing.T) {
 		"name":      "Updated Name",
 		"bio":       "Updated bio",
 		"phone":     "9876543210",
-		"threema":   "UPDATED",
 		"languages": "de,fr,it",
 	}
 	body, _ := json.Marshal(payload)
@@ -474,9 +471,9 @@ func TestUpdateProfile(t *testing.T) {
 	// Verify update
 	var user User
 	err := testDB.QueryRow(`
-		SELECT name, bio, threema, languages
+		SELECT name, bio, languages
 		FROM users WHERE id = ?
-	`, userID).Scan(&user.Name, &user.Bio, &user.Threema, &user.Languages)
+	`, userID).Scan(&user.Name, &user.Bio, &user.Languages)
 	require.NoError(t, err)
 	assert.Equal(t, "Updated Name", user.Name)
 	assert.Equal(t, "Updated bio", user.Bio)
@@ -494,9 +491,9 @@ func TestGetOwnProfile(t *testing.T) {
 	// Update profile with additional data
 	_, err := testDB.Exec(`
 		UPDATE users
-		SET bio = ?, threema = ?, languages = ?
+		SET bio = ?, languages = ?
 		WHERE id = ?
-	`, "Test bio", "TESTID", "en,de,fr", userID)
+	`, "Test bio", "en,de,fr", userID)
 	require.NoError(t, err)
 
 	future := time.Now().Add(24 * time.Hour).Format(time.RFC3339)
@@ -572,7 +569,6 @@ func TestGetOwnProfile(t *testing.T) {
 	require.True(t, ok, "user field should be present")
 	assert.Equal(t, "Test User", userData["name"])
 	assert.Equal(t, "Test bio", userData["bio"])
-	assert.Equal(t, "TESTID", userData["threema"])
 	assert.Equal(t, "en,de,fr", userData["languages"])
 
 	// Check created events
