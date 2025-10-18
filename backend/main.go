@@ -242,7 +242,7 @@ func initDB() {
 		"hide_participants_until_joined": "INTEGER DEFAULT 1",
 		"require_verified_to_join":       "INTEGER DEFAULT 0",
 		"require_verified_to_view":       "INTEGER DEFAULT 0",
-		"allow_unregistered_users":       "INTEGER DEFAULT 0",
+		"allow_unregistered_users":       "INTEGER DEFAULT 1",
 	}
 
 	// Whitelist of allowed column names to prevent SQL injection
@@ -278,6 +278,19 @@ func initDB() {
 			} else {
 				log.Printf("✓ %s column added successfully", columnName)
 			}
+		}
+	}
+
+	// Fix existing events: set allow_unregistered_users=1 for events that have 0
+	// This maintains backwards compatibility - all existing events should be publicly viewable
+	log.Printf("📝 Updating existing events to allow unregistered users by default...")
+	result, err := db.Exec(`UPDATE events SET allow_unregistered_users = 1 WHERE allow_unregistered_users = 0`)
+	if err != nil {
+		log.Printf("⚠️  Warning: Could not update existing events: %v", err)
+	} else {
+		rowsAffected, _ := result.RowsAffected()
+		if rowsAffected > 0 {
+			log.Printf("✓ Updated %d existing events to allow unregistered users", rowsAffected)
 		}
 	}
 
