@@ -1583,12 +1583,14 @@ func downloadEventICS(c *gin.Context) {
 	var startTime, endTime, genderRestriction, eventLanguages, eventSlug sql.NullString
 	var maxParticipants sql.NullInt64
 	var createdAt time.Time
-	
+
 	err := db.QueryRow(`
 		SELECT e.id, e.user_id, e.title, e.description, e.category, e.latitude, e.longitude,
 		       e.start_time, e.end_time, e.creator_name, e.max_participants,
 		       e.gender_restriction, e.age_min, e.age_max,
-		       e.smoking_allowed, e.alcohol_allowed, e.event_languages, e.slug, e.created_at
+		       e.smoking_allowed, e.alcohol_allowed, e.event_languages, e.slug, e.created_at,
+		       e.hide_organizer_until_joined, e.hide_participants_until_joined,
+		       e.require_verified_to_join, e.require_verified_to_view, e.allow_unregistered_users
 		FROM events e
 		WHERE e.slug = ?
 	`, slug).Scan(
@@ -1596,6 +1598,8 @@ func downloadEventICS(c *gin.Context) {
 		&startTime, &endTime, &e.CreatorName,
 		&maxParticipants, &genderRestriction, &e.AgeMin, &e.AgeMax,
 		&e.SmokingAllowed, &e.AlcoholAllowed, &eventLanguages, &eventSlug, &createdAt,
+		&e.HideOrganizerUntilJoined, &e.HideParticipantsUntilJoined,
+		&e.RequireVerifiedToJoin, &e.RequireVerifiedToView, &e.AllowUnregisteredUsers,
 	)
 
 	if err == sql.ErrNoRows {

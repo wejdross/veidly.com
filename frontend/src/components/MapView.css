@@ -311,6 +311,19 @@
 
   .popup-content {
     min-width: 220px;
+    max-width: 90vw;
+  }
+
+  /* Fix popup scrolling on mobile */
+  .leaflet-popup-content-wrapper {
+    max-height: 70vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .leaflet-popup-content {
+    max-height: 65vh;
+    overflow-y: auto;
   }
 }
 

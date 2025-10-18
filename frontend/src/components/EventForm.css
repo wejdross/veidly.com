@@ -452,15 +452,29 @@
 }
 
 @media (max-width: 768px) {
+  .modal-overlay {
+    padding: 0;
+    align-items: flex-start;
+  }
+
   .modal-content {
-    max-height: 95vh;
-    margin: 0.5rem;
-    border-radius: 20px;
+    max-height: 100vh;
+    min-height: 100vh;
+    height: 100vh;
+    margin: 0;
+    border-radius: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    /* Fix iOS scrolling issues */
+    position: relative;
   }
 
   .modal-header {
     padding: 1.5rem;
-    border-radius: 20px 20px 0 0;
+    border-radius: 0;
+    position: sticky;
+    top: 0;
+    z-index: 10;
   }
 
   .modal-header h2 {
@@ -469,14 +483,18 @@
 
   .event-form {
     padding: 1.5rem;
+    padding-bottom: 4rem; /* Extra padding for better scrolling on mobile */
+    min-height: calc(100vh - 100px);
   }
 
   .form-row {
     grid-template-columns: 1fr;
+    gap: 1rem;
   }
 
   .form-actions {
     flex-direction: column;
+    padding-bottom: 2rem;
   }
 
   .button-primary,
@@ -486,6 +504,16 @@
 
   .language-selector {
     grid-template-columns: 1fr;
+  }
+
+  /* Ensure input fields are accessible when keyboard opens */
+  input[type="text"]:focus,
+  input[type="number"]:focus,
+  input[type="datetime-local"]:focus,
+  textarea:focus,
+  select:focus {
+    scroll-margin-top: 100px;
+    scroll-margin-bottom: 100px;
   }
 }
 

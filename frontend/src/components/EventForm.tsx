@@ -1,5 +1,5 @@
 import { useState, FormEvent, useEffect } from 'react'
-import { MapContainer, TileLayer, Marker } from 'react-leaflet'
+import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet'
 import { api } from '../api'
 import { Event, CATEGORIES } from '../types'
 import { useAuth } from '../AuthContext'
@@ -17,6 +17,15 @@ interface Place {
   display_name: string
   lat: string
   lon: string
+}
+
+// Component to update map view when coordinates change
+function MapUpdater({ center }: { center: [number, number] }) {
+  const map = useMap()
+  useEffect(() => {
+    map.setView(center, map.getZoom())
+  }, [center, map])
+  return null
 }
 
 function EventForm({ initialLocation, onClose, event }: EventFormProps) {
@@ -397,11 +406,13 @@ function EventForm({ initialLocation, onClose, event }: EventFormProps) {
                     zoomControl={false}
                     doubleClickZoom={false}
                     touchZoom={false}
+                    key={`${formData.latitude}-${formData.longitude}`}
                   >
                     <TileLayer
                       attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
                       url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                     />
+                    <MapUpdater center={[formData.latitude, formData.longitude]} />
                     <Marker position={[formData.latitude, formData.longitude]} />
                   </MapContainer>
                 </div>
